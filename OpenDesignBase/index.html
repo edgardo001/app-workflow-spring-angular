@@ -1,0 +1,1654 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="app-workflow · Panel de aprobaciones para gestionar flujos de documentos con seguimiento en tiempo real.">
+  <meta property="og:title" content="app-workflow · Panel de aprobaciones">
+  <meta property="og:description" content="Gestiona flujos de aprobación de documentos con seguimiento en tiempo real, notificaciones y firma electrónica.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="app-workflow · Panel de aprobaciones">
+  <meta name="twitter:description" content="Gestiona flujos de aprobación de documentos con seguimiento en tiempo real.">
+  <title>app-workflow · Panel de aprobaciones</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));</script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232f6feb'/%3E%3Cpath d='M10 16l4 4 8-8' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --fg: #111111;
+      --muted: #6b6b6b;
+      --border: #e5e5e5;
+      --accent: #2f6feb;
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+      --accent-on: #ffffff;
+      --success: #17a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+      --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+      --font-display: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-body: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', monospace;
+      --fs-h1: clamp(28px, 3vw, 36px);
+      --fs-h2: clamp(22px, 2.5vw, 28px);
+      --fs-h3: 18px;
+      --fs-lead: 17px;
+      --fs-body: 15px;
+      --fs-sm: 13px;
+      --fs-xs: 12px;
+      --gap-xs: 6px;
+      --gap-sm: 10px;
+      --gap-md: 16px;
+      --gap-lg: 24px;
+      --gap-xl: 40px;
+      --radius: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+      --sidebar-w: 240px;
+      --topbar-h: 56px;
+    }
+    [data-theme="dark"] {
+      --bg: #161616;
+      --surface: #1e1e1e;
+      --fg: #e5e5e5;
+      --muted: #888888;
+      --border: #2e2e2e;
+      --accent: #2f6feb;
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+      --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+      --accent-on: #ffffff;
+      --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+      --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 90%);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]):not([data-theme="dark"]) {
+        --bg: #161616;
+        --surface: #1e1e1e;
+        --fg: #e5e5e5;
+        --muted: #888888;
+        --border: #2e2e2e;
+        --accent: #2f6feb;
+        --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+        --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+        --accent-on: #ffffff;
+        --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+        --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 90%);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    p { text-wrap: pretty; }
+    h1, h2, h3 { text-wrap: balance; }
+    [x-cloak] { display: none !important; }
+
+    /* ─── utility classes ─── */
+    .w-full { width: 100%; }
+    .flex-center { display: flex; align-items: center; justify-content: center; }
+    .flex-row { display: flex; align-items: center; gap: var(--gap-md); }
+    .flex-wrap { display: flex; gap: var(--gap-sm); flex-wrap: wrap; }
+    .text-xs { font-size: var(--fs-xs); }
+    .text-sm { font-size: var(--fs-sm); }
+    .text-muted { color: var(--muted); }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .flex-1 { flex: 1; }
+    .gap-sm { gap: var(--gap-sm); }
+    .mt-xs { margin-top: var(--gap-xs); }
+    .mb-lg { margin-bottom: var(--gap-lg); }
+    .mb-xs { margin-bottom: var(--gap-xs); }
+    .fw-medium { font-weight: 500; }
+    .pl-0 { padding-left: 0; }
+    .btn-full { width: 100%; justify-content: center; }
+    .select-filter { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: var(--fs-sm); background: transparent; color: var(--muted); }
+    .inline-icon { vertical-align: middle; margin-right: 4px; }
+    .sticky-preview { position: sticky; top: calc(var(--topbar-h) + var(--gap-lg)); }
+    .page-info { font-size: var(--fs-sm); color: var(--muted); }
+    .btn-danger-ghost { color: var(--danger); border-color: transparent; }
+    .link-accent { color: var(--accent); }
+    .kpi-icon-accent { background: var(--accent-soft); color: var(--accent); }
+    .kpi-icon-success { background: color-mix(in oklch, var(--success) 10%, transparent); color: var(--success); }
+    .kpi-icon-warn { background: color-mix(in oklch, var(--warn) 10%, transparent); color: var(--warn); }
+    .kpi-icon-danger { background: color-mix(in oklch, var(--danger) 10%, transparent); color: var(--danger); }
+    .legal-divider { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; }
+    .stepper-fill-33 { width: 33%; }
+    .td-cell-muted { font-size: var(--fs-sm); color: var(--muted); }
+
+    /* ─── login ─── */
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--gap-lg);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+    }
+    .login-card .logo-mark {
+      width: 44px; height: 44px;
+      background: var(--accent);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto var(--gap-md);
+    }
+    .login-card h1 {
+      font-family: var(--font-display);
+      font-size: var(--fs-h2);
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .login-card p {
+      color: var(--muted);
+      text-align: center;
+      font-size: var(--fs-sm);
+      margin-bottom: var(--gap-lg);
+    }
+
+    /* ─── app shell ─── */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100%;
+      z-index: 20;
+      transition: transform 0.2s ease;
+    }
+    .sidebar.closed { transform: translateX(-100%); }
+    @media (min-width: 1024px) { .sidebar.closed { transform: none; } }
+    .sidebar-header {
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--gap-md);
+      border-bottom: 1px solid var(--border);
+      gap: var(--gap-sm);
+    }
+    .sidebar-header .logo-icon {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .sidebar-header .logo-icon svg { width: 18px; height: 18px; color: var(--accent-on); }
+    .sidebar-header span { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
+    .sidebar-user {
+      padding: var(--gap-md);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: var(--gap-sm);
+    }
+    .sidebar-user .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--fg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .sidebar-user .user-info { flex: 1; overflow: hidden; }
+    .sidebar-user .user-info .name { font-size: var(--fs-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sidebar-user .user-info .role { font-size: var(--fs-xs); color: var(--muted); }
+    .sidebar-nav {
+      flex: 1;
+      padding: var(--gap-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sidebar-nav .nav-section {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: var(--gap-md) var(--gap-sm) var(--gap-xs);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-sm);
+      padding: 8px var(--gap-sm);
+      border-radius: var(--radius);
+      font-size: var(--fs-sm);
+      color: var(--muted);
+      transition: all 0.1s ease;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--fg-soft); color: var(--fg); }
+    .nav-item.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .sidebar-foot {
+      padding: var(--gap-sm);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ─── main area ─── */
+    .main-area {
+      flex: 1;
+      margin-left: var(--sidebar-w);
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (max-width: 1023px) { .main-area { margin-left: 0; } }
+    .topbar {
+      height: var(--topbar-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--gap-lg);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .topbar .menu-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 4px;
+    }
+    @media (max-width: 1023px) { .topbar .menu-btn { display: block; } }
+    .topbar .breadcrumb {
+      font-size: var(--fs-sm);
+      color: var(--muted);
+    }
+    .topbar .breadcrumb strong { color: var(--fg); font-weight: 500; }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-md);
+    }
+    .theme-toggle-app {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border: none; border-radius: 6px;
+      background: transparent; color: var(--muted); cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+    }
+    .theme-toggle-app:hover { color: var(--fg); background: var(--fg-soft); }
+    .theme-toggle-app svg { width: 18px; height: 18px; }
+    .theme-toggle-app .sun-icon { display: none; }
+    [data-theme="dark"] .theme-toggle-app .moon-icon { display: none; }
+    [data-theme="dark"] .theme-toggle-app .sun-icon { display: block; }
+
+    .topbar-actions .notif-btn {
+      position: relative;
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 4px;
+    }
+    .topbar-actions .notif-btn .dot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 7px; height: 7px;
+      background: var(--danger);
+      border-radius: 50%;
+      border: 2px solid var(--surface);
+    }
+    .topbar-actions .top-avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: var(--fg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+    }
+
+    .page-content {
+      flex: 1;
+      padding: var(--gap-lg);
+      overflow: auto;
+    }
+    .page-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ─── page header ─── */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--gap-md);
+      margin-bottom: var(--gap-lg);
+      flex-wrap: wrap;
+    }
+    .page-header h1 {
+      font-family: var(--font-display);
+      font-size: var(--fs-h1);
+      font-weight: 600;
+      letter-spacing: -0.015em;
+    }
+    .page-header p { color: var(--muted); font-size: var(--fs-sm); margin-top: 2px; }
+
+    /* ─── kpi grid ─── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--gap-md);
+      margin-bottom: var(--gap-lg);
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--gap-md) var(--gap-lg);
+    }
+    .kpi-card .kpi-icon {
+      width: 36px; height: 36px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--gap-md);
+    }
+    .kpi-card .kpi-icon svg { width: 20px; height: 20px; }
+    .kpi-card .kpi-num {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .kpi-card .kpi-label { font-size: var(--fs-sm); color: var(--muted); }
+    .kpi-card .kpi-trend {
+      margin-top: var(--gap-sm);
+      font-size: var(--fs-xs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .kpi-card .kpi-trend.up { color: var(--success); }
+    .kpi-card .kpi-trend.down { color: var(--danger); }
+    .kpi-card .kpi-trend.muted { color: var(--muted); font-size: var(--fs-xs); }
+
+    /* ─── table ─── */
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--gap-md);
+      padding: var(--gap-md) var(--gap-lg);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .table-toolbar .search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 360px;
+    }
+    .table-toolbar .search-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--muted);
+    }
+    .table-toolbar .search-wrap input {
+      width: 100%;
+      padding: 8px 10px 8px 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: var(--fs-sm);
+      background: var(--bg);
+      color: var(--fg);
+    }
+    .table-toolbar .search-wrap input:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+    }
+    thead th {
+      background: var(--bg);
+      text-align: left;
+      padding: 10px var(--gap-md);
+      font-family: var(--font-mono);
+      font-size: var(--fs-xs);
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    thead th.text-right { text-align: right; }
+    tbody td {
+      padding: 12px var(--gap-md);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { transition: background 0.1s; cursor: pointer; }
+    tbody tr:hover { background: var(--fg-soft); }
+    tbody tr:last-child td { border-bottom: none; }
+    .td-id { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--muted); }
+    .td-title { font-weight: 500; }
+    .td-owner { font-size: var(--fs-xs); color: var(--muted); }
+    .td-actions { text-align: right; }
+
+    /* ─── status badges ─── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: var(--fs-xs);
+      font-weight: 500;
+      letter-spacing: 0.01em;
+    }
+    .badge-en-curso { background: color-mix(in oklch, var(--accent) 12%, transparent); color: var(--accent); }
+    .badge-completado { background: color-mix(in oklch, var(--success) 12%, transparent); color: var(--success); }
+    .badge-pendiente { background: color-mix(in oklch, var(--warn) 12%, transparent); color: var(--warn); }
+    .badge-rechazado { background: color-mix(in oklch, var(--danger) 12%, transparent); color: var(--danger); }
+
+    /* ─── progress bar ─── */
+    .progress-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-sm);
+    }
+    .progress-track {
+      width: 64px;
+      height: 6px;
+      background: var(--fg-soft);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+      transition: width 0.3s ease;
+    }
+    .progress-label { font-size: var(--fs-xs); color: var(--muted); font-family: var(--font-mono); }
+
+    /* ─── action buttons ─── */
+    .action-btn {
+      background: none;
+      border: none;
+      padding: 4px;
+      color: var(--muted);
+      border-radius: 4px;
+      transition: all 0.1s;
+    }
+    .action-btn:hover { background: var(--fg-soft); }
+    .action-btn.approve { color: var(--success); }
+    .action-btn.approve:hover { background: color-mix(in oklch, var(--success) 12%, transparent); }
+    .action-btn.view:hover { color: var(--accent); background: var(--accent-soft); }
+
+    /* ─── table pagination ─── */
+    .table-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--gap-md) var(--gap-lg);
+      border-top: 1px solid var(--border);
+      font-size: var(--fs-sm);
+      color: var(--muted);
+    }
+    .table-foot .pagination { display: flex; align-items: center; gap: var(--gap-xs); }
+    .table-foot .page-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--fg);
+      font-size: var(--fs-sm);
+    }
+    .table-foot .page-btn:hover { background: var(--fg-soft); }
+    .table-foot .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ─── new flow form ─── */
+    .form-layout {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: var(--gap-lg);
+      align-items: start;
+    }
+    @media (max-width: 920px) { .form-layout { grid-template-columns: 1fr; } }
+
+    /* ─── toast ─── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-sm);
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      color: var(--accent-on);
+      box-shadow: var(--elev-raised);
+      max-width: 380px;
+    }
+    .toast.toast-success { background: var(--success); }
+    .toast.toast-error { background: var(--danger); }
+    .toast.toast-info { background: var(--accent); }
+
+    /* ─── responsive fine-tuning ─── */
+    @media (max-width: 430px) {
+      .page-content { padding: var(--gap-sm); }
+      .page-header { flex-direction: column; }
+      .page-header h1 { font-size: var(--fs-h2); }
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: var(--gap-sm); }
+      .kpi-card { padding: var(--gap-sm) var(--gap-md); }
+      .flows-grid { grid-template-columns: 1fr; }
+      .table-toolbar { flex-direction: column; align-items: stretch; }
+      .table-toolbar .search-wrap { max-width: none; }
+      .table-foot { flex-direction: column; gap: var(--gap-sm); text-align: center; }
+      .pending-card { border-radius: var(--radius-lg); }
+      .stepper { max-width: 100%; overflow-x: auto; padding-bottom: var(--gap-xs); }
+      .sidebar { width: 100%; }
+      .login-card { padding: var(--gap-lg); border-radius: var(--radius-lg); }
+    }
+    @media (min-width: 1440px) {
+      .page-inner { max-width: 1400px; }
+      .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (min-width: 1920px) {
+      .page-inner { max-width: 1600px; }
+      .page-content { padding: var(--gap-lg) var(--gap-xl); }
+    }
+    @media (max-width: 360px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .topbar { padding: 0 var(--gap-md); }
+      .sidebar-header { padding: 0 var(--gap-sm); }
+      .topbar-actions { gap: var(--gap-sm); }
+    }
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--gap-lg);
+    }
+    .form-card .field { margin-bottom: var(--gap-md); }
+    .form-card label {
+      display: block;
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      margin-bottom: var(--gap-xs);
+      color: var(--fg);
+    }
+    .form-card input, .form-card textarea, .form-card select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font: inherit;
+      font-size: var(--fs-sm);
+      color: var(--fg);
+      background: var(--surface);
+    }
+    .form-card input:focus, .form-card textarea:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
+    .form-card textarea { min-height: 80px; resize: vertical; }
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--gap-lg);
+      text-align: center;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .dropzone:hover { border-color: var(--accent); }
+    .dropzone svg { width: 32px; height: 32px; margin-bottom: var(--gap-sm); color: var(--border); }
+    .dropzone p { font-size: var(--fs-sm); }
+    .dropzone .hint { font-size: var(--fs-xs); margin-top: 4px; }
+    .file-chip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: var(--gap-sm);
+      font-size: var(--fs-sm);
+    }
+    .file-chip .rm-btn { background: none; border: none; color: var(--muted); }
+    .file-chip .rm-btn:hover { color: var(--danger); }
+
+    .dest-row {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-sm);
+      margin-bottom: var(--gap-xs);
+    }
+    .dest-row .idx {
+      font-family: var(--font-mono);
+      font-size: var(--fs-xs);
+      color: var(--muted);
+      width: 20px;
+      text-align: right;
+    }
+    .dest-row input { flex: 1; }
+    .dest-row .rm-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+    }
+    .dest-row .rm-btn:hover { color: var(--danger); }
+
+    .preview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--gap-lg);
+    }
+    .preview-card h3 {
+      font-size: var(--fs-xs);
+      font-family: var(--font-mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: var(--gap-lg);
+    }
+    .preview-flow .flow-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .preview-flow .flow-desc { font-size: var(--fs-xs); color: var(--muted); margin-bottom: var(--gap-lg); }
+    .step-chain { display: flex; flex-direction: column; gap: var(--gap-md); }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-md);
+      position: relative;
+    }
+    .step-item .step-node {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--surface);
+      z-index: 1;
+      flex-shrink: 0;
+    }
+    .step-item .step-node.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .step-item .step-node .check {
+      width: 16px; height: 16px;
+      color: var(--success);
+    }
+    .step-item .step-line {
+      position: absolute;
+      left: 15px; top: 32px;
+      width: 2px;
+      height: 24px;
+      background: var(--border);
+    }
+    .step-item:last-child .step-line { display: none; }
+    .step-item .step-info { }
+    .step-item .step-info .s-name { font-size: var(--fs-sm); font-weight: 500; }
+    .step-item .step-info .s-role { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .info-note {
+      margin-top: var(--gap-lg);
+      padding: var(--gap-md);
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-soft);
+      border-radius: var(--radius);
+      display: flex;
+      gap: var(--gap-sm);
+      font-size: var(--fs-xs);
+      color: var(--accent);
+    }
+    .info-note svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ─── page transitions ─── */
+    .page-fade { transition: opacity 0.18s ease; }
+    .page-fade[x-cloak] { opacity: 0; }
+
+    /* ─── flows grid ─── */
+    .flows-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--gap-md);
+    }
+    .flow-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--gap-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-md);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .flow-card:hover { border-color: var(--accent-soft); box-shadow: var(--elev-raised); }
+    .flow-card .fc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--gap-sm); }
+    .flow-card .fc-title { font-weight: 600; font-size: 16px; }
+    .flow-card .fc-owner { font-size: var(--fs-sm); color: var(--muted); display: flex; align-items: center; gap: 4px; }
+    .flow-card .fc-meta { display: flex; flex-wrap: wrap; gap: var(--gap-sm); font-size: var(--fs-xs); color: var(--muted); }
+    .flow-card .fc-meta span { display: flex; align-items: center; gap: 4px; }
+    .flow-card .fc-foot { display: flex; align-items: center; justify-content: space-between; padding-top: var(--gap-sm); border-top: 1px solid var(--border); }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--gap-sm);
+      padding-top: var(--gap-md);
+      border-top: 1px solid var(--border);
+      margin-top: var(--gap-md);
+    }
+
+    /* ─── pending me view ─── */
+    .pending-container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .pending-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+    .pending-header {
+      padding: var(--gap-lg);
+      border-bottom: 1px solid var(--border);
+    }
+    .pending-header .alert-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-sm);
+      color: var(--warn);
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      margin-bottom: var(--gap-md);
+    }
+    .pending-header .alert-banner svg { width: 20px; height: 20px; }
+    .pending-header h2 {
+      font-family: var(--font-display);
+      font-size: var(--fs-h2);
+      font-weight: 600;
+      letter-spacing: -0.015em;
+    }
+    .pending-header .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--gap-md);
+      font-size: var(--fs-sm);
+      color: var(--muted);
+      margin-top: var(--gap-xs);
+    }
+    .doc-list {
+      padding: var(--gap-lg);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-sm);
+    }
+    .doc-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--gap-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.15s;
+    }
+    .doc-item:hover { border-color: var(--accent); }
+    .doc-item .doc-info {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-md);
+    }
+    .doc-item .doc-icon {
+      width: 36px; height: 36px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .doc-item .doc-icon.pdf { background: color-mix(in oklch, var(--danger) 10%, transparent); color: var(--danger); }
+    .doc-item .doc-icon.doc { background: var(--accent-soft); color: var(--accent); }
+    .doc-item .doc-name { font-size: var(--fs-sm); font-weight: 500; }
+    .doc-item .doc-size { font-size: var(--fs-xs); color: var(--muted); }
+
+    .pending-body {
+      padding: var(--gap-lg);
+    }
+    .stepper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      max-width: 480px;
+      margin: 0 auto var(--gap-lg);
+    }
+    .stepper-track {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 100%;
+      height: 4px;
+      background: var(--fg-soft);
+      border-radius: 99px;
+    }
+    .stepper-track .stepper-fill {
+      height: 100%;
+      background: var(--success);
+      border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+    .step-dot {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .step-dot .dot {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .step-dot .dot.done { background: var(--success); border-color: var(--success); color: var(--accent-on); }
+    .step-dot .dot.current { background: var(--accent); border-color: var(--accent); color: var(--accent-on); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .step-dot .dot-label {
+      margin-top: 6px;
+      font-size: var(--fs-xs);
+      white-space: nowrap;
+    }
+    .step-dot .dot-label.done-label { color: var(--success); font-weight: 500; }
+    .step-dot .dot-label.current-label { color: var(--accent); font-weight: 600; }
+
+    .approve-area {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-md);
+    }
+    .checkbox-card {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-md);
+      padding: var(--gap-md);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    .checkbox-card.checked {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .checkbox-card input[type="checkbox"] {
+      width: 20px; height: 20px;
+      accent-color: var(--accent);
+    }
+    .checkbox-card label { font-size: var(--fs-sm); cursor: pointer; }
+
+    /* ─── empty state ─── */
+    .empty-state {
+      padding: var(--gap-xl) var(--gap-lg);
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty-state svg {
+      width: 48px; height: 48px;
+      margin: 0 auto var(--gap-md);
+      color: var(--border);
+    }
+    .empty-state p { font-size: var(--fs-sm); }
+    .empty-state .hint { font-size: var(--fs-xs); margin-top: var(--gap-xs); }
+
+    /* ─── users placeholder ─── */
+    .users-placeholder {
+      padding: var(--gap-xl);
+      text-align: center;
+      color: var(--muted);
+    }
+    .users-placeholder svg {
+      width: 56px; height: 56px;
+      margin: 0 auto var(--gap-md);
+      color: var(--border);
+    }
+    .users-placeholder h2 { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 600; margin-bottom: var(--gap-xs); color: var(--fg); }
+    .users-placeholder p { font-size: var(--fs-sm); max-width: 400px; margin: 0 auto; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      transition: all 0.1s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-success { background: var(--success); color: var(--accent-on); border-color: var(--success); }
+    .btn-success:hover { background: color-mix(in oklch, var(--success) 88%, black); }
+    .btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-outline { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-outline:hover { border-color: var(--fg); }
+    .btn-ghost { background: transparent; color: var(--muted); border-color: transparent; }
+    .btn-ghost:hover { color: var(--fg); }
+    .btn-sm { padding: 6px 12px; font-size: var(--fs-xs); }
+    .btn svg { width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+  <div x-data="appState()">
+    <!-- Login Screen -->
+    <div x-show="view === 'login'" class="login-screen">
+      <div class="login-card" style="position:relative">
+        <button @click="toggleTheme()" class="theme-toggle-app" style="position:absolute;top:12px;right:12px" :aria-label="theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'">
+          <svg class="moon-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <svg class="sun-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
+        <div class="logo-mark">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h1>app-workflow</h1>
+        <p>Inicia sesión para gestionar tus flujos de documentos.</p>
+        <button @click="login()" class="btn btn-primary btn-full">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+          Continuar con GitHub
+        </button>
+        <div class="legal-divider">
+          <p class="text-xs text-muted">
+            Al continuar, aceptas los <a href="/tos.html" class="link-accent">términos de uso</a> y la <a href="/privacidad.html" class="link-accent">política de privacidad</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Shell -->
+    <div x-show="view !== 'login'" class="app-shell">
+      <!-- Sidebar -->
+      <aside class="sidebar" :class="sidebarOpen ? '' : 'closed'" role="navigation" aria-label="Navegación principal">
+        <div class="sidebar-header">
+          <div class="logo-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <span>app-workflow</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">JP</div>
+          <div class="user-info">
+            <div class="name">Juan Pérez</div>
+            <div class="role">Admin</div>
+          </div>
+        </div>
+        <div class="sidebar-nav">
+          <div class="nav-section">Simular persona</div>
+          <button @click="switchRole('admin')" class="nav-item" :class="role === 'admin' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Admin
+          </button>
+          <button @click="switchRole('recipient')" class="nav-item" :class="role === 'recipient' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+            Destinatario
+          </button>
+          <div class="nav-section">Navegación</div>
+          <button @click="view = 'dashboard'; sidebarOpen = false" class="nav-item" :class="view === 'dashboard' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            Dashboard
+          </button>
+          <button @click="view = 'flows'; sidebarOpen = false" class="nav-item" :class="view === 'flows' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+            Mis Flujos
+          </button>
+          <button @click="view = 'pendingMe'; sidebarOpen = false" class="nav-item" :class="view === 'pendingMe' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Pendientes
+          </button>
+          <div class="nav-section">Administración</div>
+          <button @click="view = 'new-flow'; sidebarOpen = false" class="nav-item" :class="view === 'new-flow' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            Nuevo Flujo
+          </button>
+          <button @click="view = 'users'; sidebarOpen = false" class="nav-item" :class="view === 'users' ? 'active' : ''">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            Usuarios
+          </button>
+        </div>
+        <div class="sidebar-foot">
+          <button @click="logout()" class="nav-item" :class="{ 'text-muted': true }">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            Cerrar sesión
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <div class="main-area">
+        <header class="topbar" role="banner" aria-label="Barra superior">
+          <div class="flex-row">
+            <button @click="sidebarOpen = !sidebarOpen" class="menu-btn" aria-label="Abrir o cerrar menú lateral">
+              <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <span class="breadcrumb">Dashboard / <strong x-text="breadcrumb"></strong></span>
+          </div>
+          <div class="topbar-actions">
+            <button @click="toggleTheme()" class="theme-toggle-app" :aria-label="theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'">
+              <svg class="moon-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+              <svg class="sun-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            </button>
+            <button class="notif-btn" aria-label="Notificaciones">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              <span class="dot" aria-hidden="true"></span>
+            </button>
+            <div class="top-avatar">JP</div>
+          </div>
+        </header>
+
+        <div class="page-content" role="main">
+          <div class="page-inner">
+            <!-- DASHBOARD -->
+            <div x-show="view === 'dashboard'" class="page-fade" data-od-id="dashboard">
+              <div class="page-header">
+                <div>
+                  <h1>Dashboard</h1>
+                  <p>Resumen general de los flujos de aprobación.</p>
+                </div>
+                <button @click="view = 'new-flow'" class="btn btn-primary">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                  Nuevo Flujo
+                </button>
+              </div>
+
+              <div class="kpi-grid">
+                <div class="kpi-card">
+                  <div class="kpi-icon kpi-icon-accent">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </div>
+                  <div class="kpi-num">12</div>
+                  <div class="kpi-label">Flujos activos</div>
+                  <div class="kpi-trend up">
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
+                    3 esta semana
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon kpi-icon-success">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div class="kpi-num">48</div>
+                  <div class="kpi-label">Completados</div>
+                  <div class="kpi-trend up">
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
+                    8 esta semana
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon kpi-icon-warn">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div class="kpi-num">5</div>
+                  <div class="kpi-label">Pendientes de firma</div>
+                  <div class="kpi-trend down">
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    2 desde ayer
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon kpi-icon-danger">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  </div>
+                  <div class="kpi-num">2</div>
+                  <div class="kpi-label">Expirados</div>
+                  <div class="kpi-trend muted">Sin cambios hoy</div>
+                </div>
+              </div>
+
+              <div class="table-container">
+                <div class="table-toolbar">
+                  <div class="search-wrap">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Buscar por título, ID o destinatario..." x-model="searchQuery" aria-label="Buscar flujos">
+                  </div>
+                  <select class="select-filter" aria-label="Filtrar por período">
+                    <option>Últimos 30 días</option>
+                    <option>Este mes</option>
+                    <option>Este año</option>
+                  </select>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID Flujo</th>
+                        <th>Título</th>
+                        <th>Estado</th>
+                        <th>Progreso</th>
+                        <th>Fecha Lím.</th>
+                        <th class="text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-if="pagedFlows.length === 0">
+                        <tr>
+                          <td colspan="6">
+                            <div class="empty-state">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                              <p>No se encontraron flujos con ese criterio.</p>
+                              <p class="hint">Prueba con otro término o limpia el filtro.</p>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                      <template x-for="flow in pagedFlows" :key="flow.id">
+                        <tr>
+                          <td><span class="td-id" x-text="'#' + flow.id.substring(0,8)"></span></td>
+                          <td>
+                            <div class="td-title" x-text="flow.title"></div>
+                            <div class="td-owner" x-text="flow.owner"></div>
+                          </td>
+                          <td><span :class="'badge ' + flow.badgeClass" x-text="flow.status"></span></td>
+                          <td>
+                            <div class="progress-bar">
+                              <div class="progress-track"><div class="progress-fill" :style="'width:' + (flow.step / flow.totalSteps * 100) + '%'"></div></div>
+                              <span class="progress-label" x-text="flow.step + '/' + flow.totalSteps"></span>
+                            </div>
+                          </td>
+                          <td><span class="td-cell-muted" x-text="flow.deadline"></span></td>
+                          <td class="td-actions">
+                            <button @click="previewFlow(flow)" class="action-btn view" aria-label="Ver detalle del flujo">
+                              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            </button>
+                            <button @click="approveFlow(flow)" class="action-btn approve" aria-label="Aprobar flujo" x-show="flow.isMyTurn">
+                              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="table-foot">
+                  <span class="page-info">Mostrando <strong x-text="showingFrom"></strong>–<strong x-text="showingTo"></strong> de <strong x-text="filteredFlows.length"></strong> resultados</span>
+                  <div class="pagination" role="navigation" aria-label="Paginación de resultados">
+                    <button @click="prevPage()" class="page-btn" :disabled="currentPage <= 1" aria-label="Página anterior">Anterior</button>
+                    <span aria-current="page">Página <strong x-text="currentPage"></strong> de <strong x-text="totalPages"></strong></span>
+                    <button @click="nextPage()" class="page-btn" :disabled="currentPage >= totalPages" aria-label="Página siguiente">Siguiente</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- MIS FLUJOS -->
+            <div x-show="view === 'flows'" class="page-fade" data-od-id="flows">
+              <div class="page-header">
+                <div>
+                  <h1>Mis Flujos</h1>
+                  <p>Todos los flujos de aprobación en los que participas.</p>
+                </div>
+                <button @click="view = 'new-flow'" class="btn btn-primary" aria-label="Crear nuevo flujo">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                  Nuevo Flujo
+                </button>
+              </div>
+              <div class="flows-grid">
+                <template x-for="flow in flows" :key="flow.id">
+                  <div class="flow-card">
+                    <div class="fc-top">
+                      <div>
+                        <div class="fc-title" x-text="flow.title"></div>
+                        <div class="fc-owner">
+                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                          <span x-text="flow.owner"></span>
+                        </div>
+                      </div>
+                      <span :class="'badge ' + flow.badgeClass" x-text="flow.status"></span>
+                    </div>
+                    <div class="fc-meta">
+                      <span>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span x-text="flow.step + '/' + flow.totalSteps + ' pasos'"></span>
+                      </span>
+                      <span>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <span x-text="flow.deadline"></span>
+                      </span>
+                    </div>
+                    <div class="fc-foot">
+                      <div class="progress-bar flex-1">
+                        <div class="progress-track"><div class="progress-fill" :style="'width:' + (flow.step / flow.totalSteps * 100) + '%'"></div></div>
+                        <span class="progress-label"><span x-text="Math.round(flow.step / flow.totalSteps * 100)"></span>%</span>
+                      </div>
+                      <button @click="view = 'pendingMe'" class="action-btn view" aria-label="Ir a pendientes" x-show="flow.isMyTurn">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- USUARIOS -->
+            <div x-show="view === 'users'" class="page-fade" data-od-id="users">
+              <div class="page-header">
+                <div>
+                  <h1>Usuarios</h1>
+                  <p>Gestión de usuarios del sistema.</p>
+                </div>
+              </div>
+              <div class="users-placeholder">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                <h2>Próximamente</h2>
+                <p>La gestión de usuarios estará disponible en una próxima actualización. Aquí podrás invitar, asignar roles y administrar permisos.</p>
+              </div>
+            </div>
+
+            <!-- PENDIENTES (role=recipient) -->
+            <div x-show="view === 'pendingMe'" class="page-fade" data-od-id="pending">
+              <div class="pending-container">
+                <div class="page-header">
+                  <div>
+                    <h1>Tienes documentos pendientes</h1>
+                    <p>Revisión y firma requerida</p>
+                  </div>
+                </div>
+
+                <div class="pending-card">
+                  <div class="pending-header">
+                    <div class="alert-banner">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                      <span>Tienes un documento pendiente de aprobación</span>
+                    </div>
+                    <h2>Contrato de Servicios Q3 — Empresa XYZ</h2>
+                    <div class="meta-row">
+                      <span>Enviado por: juan@empresa.com</span>
+                      <span>Fecha límite: 20 Jun 2026</span>
+                    </div>
+                  </div>
+
+                  <div class="doc-list">
+                    <div class="doc-item">
+                      <div class="doc-info">
+                        <div class="doc-icon pdf">
+                          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        </div>
+                        <div>
+                          <div class="doc-name">contrato-servicios-q3.pdf</div>
+                          <div class="doc-size">1.2 MB</div>
+                        </div>
+                      </div>
+                      <button @click="previewDoc('contrato-servicios-q3.pdf')" class="btn btn-ghost btn-sm" aria-label="Previsualizar documento">Previsualizar</button>
+                    </div>
+                    <div class="doc-item">
+                      <div class="doc-info">
+                        <div class="doc-icon doc">
+                          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        </div>
+                        <div>
+                          <div class="doc-name">anexo-tecnico-final.pdf</div>
+                          <div class="doc-size">800 KB</div>
+                        </div>
+                      </div>
+                      <button @click="previewDoc('anexo-tecnico-final.pdf')" class="btn btn-ghost btn-sm" aria-label="Previsualizar documento">Previsualizar</button>
+                    </div>
+                  </div>
+
+                  <div class="pending-body">
+                    <p class="text-sm fw-medium mb-lg">Paso 2 de 4 — Tu firma es requerida</p>
+
+                    <div class="stepper">
+                      <div class="stepper-track">
+                        <div class="stepper-fill stepper-fill-33"></div>
+                      </div>
+                      <div class="step-dot">
+                        <div class="dot done"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></div>
+                        <span class="dot-label done-label">Ana</span>
+                      </div>
+                      <div class="step-dot">
+                        <div class="dot current">2</div>
+                        <span class="dot-label current-label">Tú</span>
+                      </div>
+                      <div class="step-dot">
+                        <div class="dot">3</div>
+                        <span class="dot-label">Sofía</span>
+                      </div>
+                      <div class="step-dot">
+                        <div class="dot">4</div>
+                        <span class="dot-label">CEO</span>
+                      </div>
+                    </div>
+
+                    <div class="approve-area">
+                      <div class="checkbox-card" :class="termsAccepted ? 'checked' : ''">
+                        <input type="checkbox" x-model="termsAccepted" id="terms">
+                        <label for="terms">He revisado los documentos adjuntos y apruebo este flujo.</label>
+                      </div>
+                      <div class="flex-wrap">
+                        <button @click="approve()" :disabled="!termsAccepted" class="btn btn-success flex-1">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                          APROBAR
+                        </button>
+                        <button @click="requestChanges()" class="btn btn-outline">Solicitar cambios</button>
+                        <button @click="rejectFlow()" class="btn btn-outline btn-danger-ghost">Rechazar</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- NEW FLOW -->
+            <div x-show="view === 'new-flow'" class="page-fade" data-od-id="new-flow">
+              <div class="page-header">
+                <div>
+                  <button @click="view = 'dashboard'" class="btn btn-ghost pl-0 mb-xs">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    Volver
+                  </button>
+                  <h1>Crear Nuevo Flujo</h1>
+                  <p>Configura un nuevo proceso de aprobación.</p>
+                </div>
+              </div>
+
+              <div class="form-layout">
+                <div class="form-card">
+                  <div class="field">
+                    <label>Título del flujo *</label>
+                    <input type="text" x-model="newFlow.title" placeholder="Ej: Contrato de servicios Q3">
+                  </div>
+                  <div class="field">
+                    <label>Descripción (opcional)</label>
+                    <textarea x-model="newFlow.description" placeholder="Añade contexto para los revisores..."></textarea>
+                  </div>
+                  <div class="field">
+                    <label>Fecha límite *</label>
+                    <input type="date" x-model="newFlow.deadline">
+                  </div>
+                  <div class="field">
+                    <label>Documentos adjuntos</label>
+                    <div class="dropzone">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                      <p>Arrastra archivos aquí o haz clic</p>
+                      <p class="hint">PDF, DOCX — máx. 2 MB por archivo</p>
+                    </div>
+                    <div class="file-chip">
+                      <span><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" class="inline-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>contrato-servicios.pdf <span class="text-xs text-muted">1.2 MB</span></span>
+                      <button class="rm-btn" aria-label="Eliminar archivo">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label>Destinatarios (orden de aprobación)</label>
+                    <template x-for="(d, i) in newFlow.destinatarios" :key="i">
+                      <div class="dest-row">
+                        <span class="idx" x-text="(i+1) + '.'"></span>
+                        <input type="email" x-model="newFlow.destinatarios[i]" placeholder="correo@ejemplo.com" :aria-label="'Correo del destinatario ' + (i+1)">
+                        <button @click="removeDest(i)" class="rm-btn" :aria-label="'Eliminar destinatario ' + (i+1)">
+                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    </template>
+                    <button @click="addDest()" class="btn btn-ghost btn-sm mt-xs pl-0">
+                      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                      Agregar destinatario
+                    </button>
+                  </div>
+                  <div class="form-actions">
+                    <button @click="view = 'dashboard'" class="btn btn-outline">Cancelar</button>
+                    <button @click="startFlow()" class="btn btn-primary">Iniciar flujo →</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="preview-card sticky-preview">
+                    <h3>Vista previa del flujo</h3>
+                    <div class="preview-flow">
+                      <div class="flow-title" x-text="newFlow.title || 'Título del flujo'"></div>
+                      <div class="flow-desc" x-text="newFlow.description || 'Sin descripción'"></div>
+                      <div class="step-chain">
+                        <template x-for="(d, i) in newFlow.destinatarios" :key="i">
+                          <div class="step-item">
+                            <div class="step-line"></div>
+                            <div class="step-node" :class="d ? 'active' : ''">
+                              <span x-text="i + 1"></span>
+                            </div>
+                            <div class="step-info">
+                              <div class="s-name" x-text="d || 'Pendiente'"></div>
+                              <div class="s-role">Paso de aprobación</div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                    <div class="info-note">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span>Los destinatarios recibirán un correo con un enlace seguro para revisar y aprobar los documentos en el orden establecido.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container">
+      <template x-for="(t, i) in toasts" :key="i">
+        <div x-show="t.show"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-2"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 translate-y-2"
+             class="toast"
+             :class="'toast-' + t.type"
+             x-text="t.message">
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <script>
+    function appState() {
+      return {
+        view: 'login',
+        role: 'admin',
+        theme: document.documentElement.getAttribute('data-theme') || 'light',
+        sidebarOpen: false,
+        searchQuery: '',
+        termsAccepted: false,
+        currentPage: 1,
+        pageSize: 10,
+        toasts: [],
+        newFlow: {
+          title: '',
+          description: '',
+          deadline: '',
+          destinatarios: ['', '']
+        },
+        flows: [
+          { id: 'f1a2b3c4d5e6', title: 'Contrato Servicios Q3', owner: 'María García', status: 'En curso', badgeClass: 'badge-en-curso', step: 2, totalSteps: 4, deadline: '20 Jun 2026', isMyTurn: false },
+          { id: 'a7b8c9d0e1f2', title: 'Acuerdo NDA Startup', owner: 'Carlos Ruiz', status: 'Pendiente', badgeClass: 'badge-pendiente', step: 1, totalSteps: 3, deadline: '18 Jun 2026', isMyTurn: true },
+          { id: 'b0c1d2e3f4a5', title: 'Renovación Anual SaaS', owner: 'Ana López', status: 'En curso', badgeClass: 'badge-en-curso', step: 3, totalSteps: 5, deadline: '25 Jun 2026', isMyTurn: false },
+          { id: 'c3d4e5f6a7b8', title: 'Conformidad Proveedores', owner: 'Pedro Sánchez', status: 'Completado', badgeClass: 'badge-completado', step: 4, totalSteps: 4, deadline: '10 Jun 2026', isMyTurn: false },
+          { id: 'd5e6f7a8b9c0', title: 'Presupuesto Marketing Q3', owner: 'Laura Martínez', status: 'Rechazado', badgeClass: 'badge-rechazado', step: 2, totalSteps: 3, deadline: '05 Jun 2026', isMyTurn: false },
+          { id: 'e7f8a9b0c1d2', title: 'Contrato Freelance Dev', owner: 'Sofía Torres', status: 'Pendiente', badgeClass: 'badge-pendiente', step: 1, totalSteps: 2, deadline: '22 Jun 2026', isMyTurn: true },
+          { id: 'f9a0b1c2d3e4', title: 'Acuerdo Confidencialidad', owner: 'Diego Ramírez', status: 'En curso', badgeClass: 'badge-en-curso', step: 2, totalSteps: 3, deadline: '28 Jun 2026', isMyTurn: false },
+          { id: 'a1b2c3d4e5f6', title: 'Facturación Proyecto X', owner: 'Valentina Muñoz', status: 'Completado', badgeClass: 'badge-completado', step: 3, totalSteps: 3, deadline: '01 Jun 2026', isMyTurn: false },
+          { id: 'b2c3d4e5f6a7', title: 'Aprobación Gastos Viaje', owner: 'Fernando Rivas', status: 'En curso', badgeClass: 'badge-en-curso', step: 1, totalSteps: 2, deadline: '30 Jun 2026', isMyTurn: true },
+          { id: 'c4d5e6f7a8b9', title: 'Contrato Mantención', owner: 'Isabel Vega', status: 'Completado', badgeClass: 'badge-completado', step: 2, totalSteps: 2, deadline: '08 Jun 2026', isMyTurn: false }
+        ],
+        get breadcrumb() {
+          const labels = { dashboard: 'Dashboard', 'new-flow': 'Nuevo Flujo', flows: 'Mis Flujos', pendingMe: 'Pendientes', users: 'Usuarios' };
+          return labels[this.view] || 'Dashboard';
+        },
+        get filteredFlows() {
+          if (!this.searchQuery) return this.flows;
+          const q = this.searchQuery.toLowerCase();
+          return this.flows.filter(f => f.title.toLowerCase().includes(q) || f.owner.toLowerCase().includes(q) || f.id.includes(q));
+        },
+        get totalPages() {
+          return Math.max(1, Math.ceil(this.filteredFlows.length / this.pageSize));
+        },
+        get pagedFlows() {
+          const start = (this.currentPage - 1) * this.pageSize;
+          return this.filteredFlows.slice(start, start + this.pageSize);
+        },
+        get showingFrom() {
+          return this.filteredFlows.length === 0 ? 0 : (this.currentPage - 1) * this.pageSize + 1;
+        },
+        get showingTo() {
+          return Math.min(this.currentPage * this.pageSize, this.filteredFlows.length);
+        },
+        toggleTheme() {
+          this.theme = this.theme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', this.theme);
+          localStorage.setItem('theme', this.theme);
+        },
+        prevPage() {
+          if (this.currentPage > 1) this.currentPage--;
+        },
+        nextPage() {
+          if (this.currentPage < this.totalPages) this.currentPage++;
+        },
+        showToast(msg, type = 'success') {
+          this.toasts.push({ show: true, message: msg, type: type });
+          setTimeout(() => {
+            if (this.toasts.length > 0) this.toasts.shift();
+          }, 3000);
+        },
+        login() { this.view = 'dashboard'; this.role = 'admin'; },
+        logout() { this.view = 'login'; this.role = ''; this.sidebarOpen = false; },
+        switchRole(r) {
+          this.role = r;
+          this.view = r === 'recipient' ? 'pendingMe' : 'dashboard';
+        },
+        addDest() { this.newFlow.destinatarios.push(''); },
+        removeDest(i) { this.newFlow.destinatarios.splice(i, 1); },
+        previewFlow(flow) {
+          this.showToast('Vista previa del flujo "' + flow.title + '"', 'info');
+        },
+        approveFlow(flow) {
+          this.showToast('Flujo "' + flow.title + '" aprobado correctamente.', 'success');
+        },
+        previewDoc(name) {
+          this.showToast('Abriendo previsualización de ' + name, 'info');
+        },
+        requestChanges() {
+          this.showToast('Se ha notificado al remitente para que realice los cambios solicitados.', 'info');
+        },
+        rejectFlow() {
+          this.showToast('Flujo rechazado. El remitente recibirá una notificación.', 'error');
+        },
+        startFlow() {
+          if (!this.newFlow.title) {
+            this.showToast('El título del flujo es obligatorio.', 'error');
+            return;
+          }
+          this.showToast('Flujo "' + this.newFlow.title + '" iniciado correctamente.', 'success');
+          this.newFlow = { title: '', description: '', deadline: '', destinatarios: ['', ''] };
+          this.view = 'dashboard';
+        },
+        approve() {
+          if (!this.termsAccepted) return;
+          this.showToast('Documento aprobado correctamente. Siguiente paso notificado a Sofía.', 'success');
+          this.termsAccepted = false;
+          this.view = 'dashboard';
+        }
+      };
+    }
+  </script>
+</body>
+</html>
