@@ -38,12 +38,7 @@ public class KafkaConfig {
     public RetryTopicConfiguration retryTopicConfiguration(KafkaTemplate<String, Object> kafkaTemplate) {
         return RetryTopicConfigurationBuilder
                 .newInstance()
-                .fixedBackoff(5000)
                 .maxAttempts(5)
-                .multiplier(3.0)
-                .doNotAutoCreateRetryTopics()
-                .doNotAutoCreateDltTopics()
-                .listenerFactory(kafkaListenerContainerFactory(null))
                 .create(kafkaTemplate);
     }
 

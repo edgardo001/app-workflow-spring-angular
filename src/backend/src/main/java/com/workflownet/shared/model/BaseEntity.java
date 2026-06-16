@@ -1,11 +1,41 @@
-package com.workflownet.shared.model
+package com.workflownet.shared.model;
 
-import org.springframework.data.annotation.Id
-import java.time.LocalDateTime
+import org.springframework.data.annotation.Id;
 
-abstract class BaseEntity {
+import java.time.LocalDateTime;
+
+public abstract class BaseEntity {
     @Id
-    var id: String? = null
-    var createdAt: LocalDateTime = LocalDateTime.now()
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    private String id;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public BaseEntity() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

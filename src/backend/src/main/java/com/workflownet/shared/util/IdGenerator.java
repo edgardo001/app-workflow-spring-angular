@@ -1,9 +1,12 @@
-package com.workflownet.shared.util
+package com.workflownet.shared.util;
 
-import java.util.UUID
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
 
 @Component
-class IdGenerator {
-    fun generate(): String = UUID.randomUUID().toString()
+public class IdGenerator {
+    public String generate() {
+        return UUID.randomUUID().toString();
+    }
 }

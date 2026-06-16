@@ -5,7 +5,7 @@ import java.time.Instant;
 public class Participant {
 
     private String email;
-    private String name;
+    private String role;
     private int stepOrder;
     private String token;
     private boolean approved;
@@ -16,16 +16,21 @@ public class Participant {
     public Participant() {
     }
 
-    public Participant(String email, String name, int stepOrder) {
+    public Participant(String email, String role) {
         this.email = email;
-        this.name = name;
-        this.stepOrder = stepOrder;
+        this.role = role;
+        this.stepOrder = 0;
         this.approved = false;
         this.rejected = false;
     }
 
-    public Participant(String email, String name, int stepOrder, String token) {
-        this(email, name, stepOrder);
+    public Participant(String email, String role, int stepOrder) {
+        this(email, role);
+        this.stepOrder = stepOrder;
+    }
+
+    public Participant(String email, String role, int stepOrder, String token) {
+        this(email, role, stepOrder);
         this.token = token;
     }
 
@@ -37,12 +42,12 @@ public class Participant {
         this.email = email;
     }
 
-    public String getName() {
-        return name;
+    public String getRole() {
+        return role;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public int getStepOrder() {

@@ -1,6 +1,6 @@
 package com.workflownet.auth.infrastructure;
 
-import com.workflownet.auth.application.service.JwtTokenService;
+import com.workflownet.auth.JwtTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

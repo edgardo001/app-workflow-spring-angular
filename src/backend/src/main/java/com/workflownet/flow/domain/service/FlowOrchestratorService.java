@@ -96,8 +96,9 @@ public class FlowOrchestratorService {
         if (flow.getStatus() == FlowStatus.COMPLETED) {
             List<String> hashes = new ArrayList<>();
             for (DocumentMetadata doc : flow.getDocuments()) {
-                hashes.add(computeSha256(doc.getTempPath()));
-                doc.setHash(hashes.getLast());
+                String hash = computeSha256(doc.getTempPath());
+                hashes.add(hash);
+                doc.setHash(hash);
             }
             tempDocumentRepository.deleteByFlowId(flowId);
 
