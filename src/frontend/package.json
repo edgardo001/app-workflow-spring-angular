@@ -1,0 +1,7 @@
+{
+  "name": "app-workflow-net-angular",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "ng serve"
+  }
+}

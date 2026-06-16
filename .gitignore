@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+bin/
+*.class
+
+# Node / Angular
+node_modules/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+*.local
+
+# Angular
+src/frontend/.angular/
