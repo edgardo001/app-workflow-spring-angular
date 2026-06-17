@@ -509,6 +509,30 @@ Si usas `gh cli`, puedes gestionar todo el flujo desde la terminal:
   gh pr status
   ```
 
+#### 5. Integrar (Merge) el Pull Request
+Una vez revisado y validado el PR, se debe integrar a la rama principal `main`. Puedes hacerlo de dos formas:
+
+##### A. Desde la Terminal con GitHub CLI (`gh`)
+* **Hacer merge interactivo (te preguntará el tipo de merge y si deseas borrar la rama local y remota):**
+  ```bash
+  gh pr merge
+  ```
+* **Hacer merge directo (estilo Squash, que consolida todos los commits y limpia la rama):**
+  ```bash
+  gh pr merge --squash --delete-branch
+  ```
+* **Hacer merge tradicional (crea un commit de fusión):**
+  ```bash
+  gh pr merge --merge --delete-branch
+  ```
+
+##### B. Desde la Interfaz Web de GitHub
+1. Ve a la pestaña **Pull Requests** en tu repositorio en GitHub.
+2. Selecciona tu PR abierto.
+3. Al final de la página de discusión, haz clic en **Merge pull request** (o elige *Squash and merge* en la flecha desplegable).
+4. Haz clic en **Confirm merge**.
+5. Presiona **Delete branch** para eliminar la rama de desarrollo ya integrada y mantener el repositorio limpio.
+
 ---
 
 ## Despliegue en Producción
