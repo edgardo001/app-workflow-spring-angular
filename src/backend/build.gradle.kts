@@ -8,7 +8,7 @@ plugins {
     kotlin("plugin.jpa") version "2.1.0"
 }
 
-group = "com.workflownet"
+group = "com.workflowspring"
 version = "0.0.1-SNAPSHOT"
 
 java {

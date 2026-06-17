@@ -17,28 +17,28 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.type.mapping: >
-          flow.created:com.workflownet.flow.domain.event.FlowCreatedEvent,
-          flow.started:com.workflownet.flow.domain.event.FlowStartedEvent,
-          flow.document.approved:com.workflownet.flow.domain.event.DocumentApprovedEvent,
-          flow.document.rejected:com.workflownet.flow.domain.event.DocumentRejectedEvent,
-          flow.expired:com.workflownet.flow.domain.event.FlowExpiredEvent,
-          flow.completed:com.workflownet.flow.domain.event.FlowCompletedEvent,
-          email.send:com.workflownet.shared.event.EmailSendEvent,
-          email.failed:com.workflownet.shared.event.EmailFailedEvent
+          flow.created:com.workflowspring.flow.domain.event.FlowCreatedEvent,
+          flow.started:com.workflowspring.flow.domain.event.FlowStartedEvent,
+          flow.document.approved:com.workflowspring.flow.domain.event.DocumentApprovedEvent,
+          flow.document.rejected:com.workflowspring.flow.domain.event.DocumentRejectedEvent,
+          flow.expired:com.workflowspring.flow.domain.event.FlowExpiredEvent,
+          flow.completed:com.workflowspring.flow.domain.event.FlowCompletedEvent,
+          email.send:com.workflowspring.shared.event.EmailSendEvent,
+          email.failed:com.workflowspring.shared.event.EmailFailedEvent
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
         spring.json.type.mapping: >
-          flow.created:com.workflownet.flow.domain.event.FlowCreatedEvent,
-          flow.started:com.workflownet.flow.domain.event.FlowStartedEvent,
-          flow.document.approved:com.workflownet.flow.domain.event.DocumentApprovedEvent,
-          flow.document.rejected:com.workflownet.flow.domain.event.DocumentRejectedEvent,
-          flow.expired:com.workflownet.flow.domain.event.FlowExpiredEvent,
-          flow.completed:com.workflownet.flow.domain.event.FlowCompletedEvent,
-          email.send:com.workflownet.shared.event.EmailSendEvent,
-          email.failed:com.workflownet.shared.event.EmailFailedEvent
+          flow.created:com.workflowspring.flow.domain.event.FlowCreatedEvent,
+          flow.started:com.workflowspring.flow.domain.event.FlowStartedEvent,
+          flow.document.approved:com.workflowspring.flow.domain.event.DocumentApprovedEvent,
+          flow.document.rejected:com.workflowspring.flow.domain.event.DocumentRejectedEvent,
+          flow.expired:com.workflowspring.flow.domain.event.FlowExpiredEvent,
+          flow.completed:com.workflowspring.flow.domain.event.FlowCompletedEvent,
+          email.send:com.workflowspring.shared.event.EmailSendEvent,
+          email.failed:com.workflowspring.shared.event.EmailFailedEvent
 
   mail:
     host: ${MAIL_HOST:localhost}
@@ -91,13 +91,17 @@ management:
 
 springdoc:
   api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
     path: /api-docs
   swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}
     path: /swagger-ui.html
-    enabled: true
 
 logging:
   level:
-    com.workflownet: ${LOG_LEVEL:DEBUG}
-    org.springframework.security: INFO
-    org.springframework.kafka: INFO
+    root: ${LOG_LEVEL_ROOT:WARN}
+    com.workflowspring: ${LOG_LEVEL:INFO}
+    org.springframework: ${LOG_LEVEL_SPRING:WARN}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:WARN}
+    org.apache.kafka: ${LOG_LEVEL_KAFKA:WARN}

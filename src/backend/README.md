@@ -77,7 +77,7 @@ Uses the project root `.env` file. Key properties:
 ## Package Structure
 
 ```
-com.workflownet
+com.workflowspring
 ├── config/          — Configuration classes (security, kafka, mongo, etc.)
 ├── flow/            — Flow vertical slice
 │   ├── domain/      — Entities, value objects, domain events
