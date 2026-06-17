@@ -421,6 +421,30 @@ Las llamadas a `http://localhost:4200/api/*` se proxean automáticamente a `http
 | `MAIL_USERNAME` | Usuario SMTP | Sí |
 | `MAIL_PASSWORD` | Contraseña SMTP | Sí |
 
+### Diagnóstico y Resolución de Problemas (Troubleshooting)
+
+#### Error: `Command failed with error 13 (Unauthorized): 'Command find requires authentication'`
+* **Causa:** Existencia de una clase `MongoConfig.java` que extiende de `AbstractMongoClientConfiguration` en `com.workflowspring.config` que anula la autoconfiguración nativa de Spring Boot e intenta conectarse sin credenciales a `localhost:27017`.
+* **Solución:** Eliminar el archivo `MongoConfig.java`. Esto forzará a Spring Boot a usar su autoconfiguración nativa leyendo la propiedad `spring.data.mongodb.uri` de `application.yml`.
+
+#### Error: `java.lang.IllegalArgumentException: state should be: databaseName does not contain ' '`
+* **Causa:** Espacios en blanco al final de las variables de entorno en el script por lotes de Windows (`cmd.exe`), causados por espaciado incorrecto antes de los encadenadores `&&`. Ejemplo: `set VAR=VAL && set VAR2=VAL2` inyecta un espacio al final de `VAR`.
+* **Solución:** Escapar las comillas de asignación y eliminar los espacios previos a `&&` en los scripts `.bat`:
+  ```bat
+  set "MONGO_DATABASE=%MONGO_DATABASE%"&& set "VAR=%VAR%"
+  ```
+
+#### Error: Cambios en credenciales del `.env` no se aplican en MongoDB
+* **Causa:** Las credenciales root de MongoDB se configuran únicamente durante la creación inicial del volumen de datos del contenedor Docker.
+* **Solución:** Recrear el contenedor limpiando los volúmenes de desarrollo antiguos:
+  ```bash
+  # Detener contenedores y limpiar volúmenes del compose
+  docker compose -f src/docker/docker-compose.yml --env-file .env down -v
+  
+  # Limpieza general de volúmenes huérfanos locales si es necesario
+  docker volume prune -f
+  ```
+
 ---
 
 ## Flujo de Trabajo
