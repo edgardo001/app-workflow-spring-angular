@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class ActionRequest {
-    private String flowId;
     private String reason;
+    private String action;
 }
