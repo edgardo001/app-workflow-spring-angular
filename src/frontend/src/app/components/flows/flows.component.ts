@@ -1,5 +1,5 @@
-import { Component, inject, signal, computed } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { FlowService } from '../../services/flow.service';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -60,6 +60,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 })
 export class FlowsComponent {
   private flowService = inject(FlowService);
+  private router = inject(Router);
   flows = toSignal(this.flowService.loadFlows(), { initialValue: [] });
   protected readonly Math = Math;
+
+  navigateToPending(): void {
+    this.router.navigate(['/pending']);
+  }
 }
