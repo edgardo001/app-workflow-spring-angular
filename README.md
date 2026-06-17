@@ -1,4 +1,4 @@
-# Workflow Net Angular
+# Workflow Spring Angular
 
 Sistema avanzado de flujo de aprobación secuencial de documentos con Arquitectura Orientada a Eventos y SAGA. 
 
