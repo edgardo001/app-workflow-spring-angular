@@ -1,15 +1,23 @@
 package com.workflownet.audit.presentation.controller;
 
-import com.workflownet.audit.AuditService;
-import lombok.RequiredArgsConstructor;
+import com.workflownet.audit.domain.FlowAuditLog;
+import com.workflownet.audit.infrastructure.AuditLogRepository;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/audit")
-@RequiredArgsConstructor
 public class AuditController {
-    private final AuditService auditService;
-    
+
+    private final AuditLogRepository auditLogRepository;
+
+    public AuditController(AuditLogRepository auditLogRepository) {
+        this.auditLogRepository = auditLogRepository;
+    }
+
     @GetMapping("/flow/{flowId}")
-    public void getAuditLog(@PathVariable String flowId) {}
+    public List<FlowAuditLog> getAuditLog(@PathVariable String flowId) {
+        return auditLogRepository.findByFlowIdOrderByTimestampDesc(flowId);
+    }
 }
