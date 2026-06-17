@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>app-workflow · Aprobaciones sin fricción</title>
+  <meta name="description" content="Plataforma de aprobaciones documentales para equipos. Gestiona, revisa y firma documentos con claridad y seguridad.">
+  <meta property="og:title" content="app-workflow · Aprobaciones sin fricción">
+  <meta property="og:description" content="Gestiona, revisa y firma documentos con la claridad de un cliente de correo moderno y la seguridad empresarial.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f6feb'/%3E%3Cpath d='M9 17l5 5 9-9' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --fg: #111111;
+      --muted: #6b6b6b;
+      --border: #e5e5e5;
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+
+      --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+      --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+
+      --font-display: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-body: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', monospace;
+
+      --fs-h1: clamp(44px, 6vw, 76px);
+      --fs-h2: clamp(32px, 4vw, 48px);
+      --fs-h3: 22px;
+      --fs-lead: 19px;
+      --fs-body: 16px;
+      --fs-meta: 13px;
+
+      --gap-xs: 8px;
+      --gap-sm: 12px;
+      --gap-md: 20px;
+      --gap-lg: 32px;
+      --gap-xl: 56px;
+      --gap-2xl: 96px;
+      --container: 1120px;
+      --gutter: 32px;
+
+      --radius: 8px;
+      --radius-lg: 12px;
+
+      --nav-h: 60px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #161616;
+      --surface: #1e1e1e;
+      --fg: #e5e5e5;
+      --muted: #888888;
+      --border: #2e2e2e;
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+      --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+      --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]):not([data-theme="dark"]) {
+        --bg: #161616;
+        --surface: #1e1e1e;
+        --fg: #e5e5e5;
+        --muted: #888888;
+        --border: #2e2e2e;
+        --accent: #2f6feb;
+        --accent-on: #ffffff;
+        --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+        --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    img, svg { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; }
+    p, li, blockquote, .lead { text-wrap: pretty; overflow-wrap: break-word; word-break: break-word; }
+    h1, h2, h3, h4 { text-wrap: balance; overflow-wrap: break-word; word-break: break-word; }
+
+    .container {
+      max-width: var(--container);
+      margin-inline: auto;
+      padding-inline: var(--gutter);
+    }
+    .section {
+      padding-block: clamp(48px, 8vw, var(--gap-2xl));
+    }
+    .section + .section { border-top: 1px solid var(--border); }
+    .stack { display: flex; flex-direction: column; gap: var(--gap-md); }
+    .stack-xl { gap: var(--gap-xl); }
+    .row { display: flex; align-items: center; gap: var(--gap-md); }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-md); flex-wrap: wrap; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap-lg); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-lg); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-md); }
+    .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: var(--gap-xl); align-items: start; }
+    .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: var(--gap-xl); align-items: start; }
+    @media (max-width: 1024px) {
+      :root { --gutter: 24px; --gap-xl: 40px; --gap-2xl: 72px; }
+    }
+    @media (max-width: 768px) {
+      :root { --gutter: 20px; --gap-xl: 32px; --gap-2xl: 56px; --fs-h1: clamp(36px, 8vw, 44px); }
+      .hero { padding-block: clamp(48px, 10vw, 80px); }
+      .stat .stat-num { font-size: clamp(44px, 12vw, 56px); }
+      .pagefoot { --gap-lg: 16px; }
+      .pagefoot nav { flex-wrap: wrap; gap: var(--gap-sm); }
+      .pagefoot .row-between { flex-direction: column; text-align: center; gap: var(--gap-md); }
+    }
+    @media (max-width: 640px) {
+      :root { --gutter: 16px; --gap-lg: 24px; --gap-xl: 24px; }
+      .section { padding-block: clamp(36px, 10vw, 48px); }
+      .stat .stat-label { font-size: 13px; }
+      .testimonial-author { flex-direction: column; text-align: center; }
+      .quote { max-width: 100%; }
+    }
+    @media (max-width: 430px) {
+      :root { --gutter: 12px; --fs-h1: clamp(28px, 7vw, 36px); --fs-h2: clamp(24px, 6vw, 32px); }
+      .grid-2, .grid-3, .grid-4, .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; }
+      .topnav nav a { font-size: 14px; }
+      .card { padding: 20px; }
+      .quote { font-size: clamp(20px, 5vw, 24px); }
+      .pagefoot nav { gap: var(--gap-xs); }
+      .pagefoot nav a { font-size: 12px; }
+    }
+    @media (max-width: 360px) {
+      :root { --gutter: 8px; --gap-md: 16px; --fs-h1: clamp(24px, 7vw, 28px); --fs-h3: 18px; --fs-lead: 16px; }
+      .btn { padding: 10px 14px; font-size: 14px; }
+      .stat .stat-num { font-size: clamp(36px, 10vw, 44px); }
+    }
+
+    .h1, h1 { font-family: var(--font-display); font-size: var(--fs-h1); line-height: 1.04; letter-spacing: -0.02em; margin: 0; font-weight: 600; }
+    .h2, h2 { font-family: var(--font-display); font-size: var(--fs-h2); line-height: 1.1; letter-spacing: -0.015em; margin: 0; font-weight: 600; }
+    .h3, h3 { font-size: var(--fs-h3); font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; margin: 0; }
+    .lead   { font-size: var(--fs-lead); line-height: 1.55; color: var(--muted); max-width: 60ch; margin: 0; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 var(--gap-md);
+    }
+    .meta { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--muted); }
+    .num  { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    .text-center { text-align: center; }
+    .mx-auto { margin-inline: auto; }
+    .max-w-36ch { max-width: 36ch; }
+    .items-center { align-items: center; }
+
+    .topnav {
+      position: sticky; top: 0; z-index: 100;
+      background: color-mix(in oklch, var(--bg) 92%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner { display: flex; align-items: center; justify-content: space-between; padding-block: 14px; min-height: var(--nav-h); }
+    .topnav .logo { font-family: var(--font-display); font-size: 19px; font-weight: 600; letter-spacing: -0.01em; flex-shrink: 0; gap: 8px; }
+    .topnav .logo svg { flex-shrink: 0; }
+    .topnav nav { display: flex; gap: var(--gap-lg); align-items: center; }
+    .topnav nav a { font-size: 14px; color: var(--muted); white-space: nowrap; }
+    .topnav nav a.btn-primary { color: var(--accent-on); }
+    .topnav nav a:hover { color: var(--fg); }
+    .topnav nav a.btn-primary:hover { color: var(--accent-on); }
+    .theme-toggle {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border: 1px solid var(--border);
+      border-radius: var(--radius); background: transparent; color: var(--muted);
+      cursor: pointer; flex-shrink: 0; margin-left: auto;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .theme-toggle:hover { color: var(--fg); border-color: var(--fg); }
+    .theme-toggle svg { width: 16px; height: 16px; }
+    .theme-toggle .sun-icon { display: none; }
+    [data-theme="dark"] .theme-toggle .moon-icon { display: none; }
+    [data-theme="dark"] .theme-toggle .sun-icon { display: block; }
+    .nav-toggle { display: none; }
+    #nav-check { position: absolute; pointer-events: none; opacity: 0; }
+    @media (max-width: 640px) {
+      .topnav-inner { flex-wrap: wrap; }
+      .nav-toggle {
+        display: flex; align-items: center; justify-content: center;
+        width: 40px; height: 40px; cursor: pointer; user-select: none;
+        color: var(--fg); border-radius: var(--radius); border: 1px solid var(--border);
+        background: transparent; margin-left: auto;
+      }
+      .topnav nav {
+        display: none; flex-direction: column;
+        width: 100%; padding-block: var(--gap-sm);
+        gap: var(--gap-sm);
+      }
+      .topnav nav a { width: 100%; padding: 8px 0; font-size: 15px; }
+      #nav-check:checked ~ .topnav-inner nav { display: flex; }
+      #nav-check:checked ~ .topnav-inner .nav-toggle .icon-open { display: none; }
+      #nav-check:checked ~ .topnav-inner .nav-toggle .icon-close { display: block; }
+      .icon-close { display: none; }
+      .topnav-inner .logo { font-size: 17px; }
+      .btn-mobile-full { width: 100%; justify-content: center; }
+      .theme-toggle { margin-left: 0; }
+    }
+    .pagefoot { padding-block: var(--gap-xl); color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
+    .pagefoot nav { display: flex; gap: var(--gap-lg); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 20px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+    a.btn-primary { color: var(--accent-on); }
+    .btn-primary:hover { background: color-mix(in oklch, var(--accent) 88%, black); }
+    .btn-secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-secondary:hover { border-color: var(--fg); }
+    .btn-ghost { background: transparent; color: var(--fg); border-color: transparent; padding-inline: 8px; }
+    .btn-ghost:hover { color: var(--accent); }
+    .btn-arrow::after { content: '→'; transition: transform 0.15s ease; }
+    .btn-arrow:hover::after { transform: translateX(2px); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+    }
+    .card-flat { background: transparent; border: 0; padding: 0; }
+
+    .feature .feature-mark {
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--accent);
+      margin-bottom: var(--gap-md);
+    }
+    .feature .feature-mark svg { width: 18px; height: 18px; }
+    .feature h3 { margin-bottom: 6px; }
+    .feature p  { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .stat .stat-num {
+      font-family: var(--font-display);
+      font-size: clamp(56px, 8vw, 96px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .stat .stat-label { color: var(--muted); font-size: 14px; margin-top: 8px; max-width: 24ch; margin-inline: auto; }
+    .stat .stat-unit  { font-size: 0.5em; opacity: 0.7; margin-left: 2px; }
+
+    .quote {
+      font-family: var(--font-display);
+      font-size: clamp(24px, 2.6vw, 32px);
+      line-height: 1.32;
+      letter-spacing: -0.01em;
+      max-width: 28ch;
+    }
+    .quote-author { color: var(--muted); font-size: 14px; margin: 0; }
+    .quote-mark {
+      font-family: var(--font-display);
+      font-size: 140px; line-height: 0.7;
+      color: var(--fg); opacity: 0.08;
+      margin-bottom: -28px;
+    }
+
+    .testimonial-author {
+      display: flex;
+      align-items: center;
+      gap: var(--gap-md);
+    }
+    .testimonial-name {
+      font-weight: 600;
+      margin: 0;
+      font-size: var(--fs-body);
+    }
+    .avatar-circle {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      aspect-ratio: 1;
+      flex-shrink: 0;
+    }
+
+    .ph-img {
+      background:
+        linear-gradient(135deg, var(--accent-soft), var(--fg-soft)),
+        var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      aspect-ratio: 16 / 10;
+      display: grid; place-items: center;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+    .ph-img.wide { aspect-ratio: 16 / 9; }
+
+    .hero {
+      padding-block: clamp(80px, 12vw, 160px);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 15% 40%, var(--accent-soft) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 60%, var(--fg-soft) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .hero .container { position: relative; }
+    .hero-center { text-align: center; max-width: 32ch; margin-inline: auto; }
+    .hero h1 { margin-bottom: var(--gap-md); }
+    .hero .lead { margin-bottom: var(--gap-lg); }
+    .hero-cta { display: inline-flex; gap: var(--gap-sm); flex-wrap: wrap; }
+    .hero-center .hero-cta { justify-content: center; }
+
+    .fade-in-up {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s cubic-bezier(0.2, 0, 0, 1), transform 0.6s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .fade-in-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .fade-in-up[data-delay="1"] { transition-delay: 0.1s; }
+    .fade-in-up[data-delay="2"] { transition-delay: 0.2s; }
+    .fade-in-up[data-delay="3"] { transition-delay: 0.3s; }
+    .fade-in-up[data-delay="4"] { transition-delay: 0.4s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fade-in-up { opacity: 1; transform: none; transition: none; }
+    }
+
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topnav" data-od-id="topnav">
+    <input type="checkbox" id="nav-check" aria-hidden="true">
+    <div class="container topnav-inner">
+      <span class="logo row">
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="0.5" y="0.5" width="31" height="31" rx="7.5" stroke="var(--accent)" stroke-width="2.5"/><path d="M9 17l5 5 9-9" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        app-workflow
+      </span>
+      <label for="nav-check" class="nav-toggle" aria-label="Menú de navegación" tabindex="0">
+        <svg class="icon-open" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+        <svg class="icon-close" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10"/></svg>
+      </label>
+      <nav>
+        <a href="#features">Características</a>
+        <a href="#testimonial">Testimonios</a>
+        <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema claro/oscuro">
+          <svg class="moon-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <svg class="sun-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
+        <a href="index.html" class="btn btn-primary btn-mobile-full" target="_blank" rel="noopener noreferrer">Ir a la app</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="content" role="main">
+    <section class="section hero" data-od-id="hero">
+      <div class="container hero-center">
+        <p class="eyebrow fade-in-up">APP-WORKFLOW · PLATAFORMA DE APROBACIONES</p>
+        <h1 class="fade-in-up" data-delay="1">Flujos de aprobación que tu equipo usará de verdad.</h1>
+        <p class="lead fade-in-up" data-delay="2">Gestiona, revisa y firma documentos con la claridad del correo moderno y la seguridad de una plataforma empresarial.</p>
+        <div class="hero-cta fade-in-up" data-delay="3">
+          <a href="index.html" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Iniciar flujo ahora</a>
+          <a href="#features" class="btn btn-secondary" role="button">Ver demo</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-od-id="features">
+      <div class="container stack stack-xl">
+        <div class="max-w-36ch">
+          <p class="eyebrow">CAPACIDADES CLAVE</p>
+          <h2>Tres razones por las que los equipos eligen app-workflow.</h2>
+        </div>
+        <div class="grid-3">
+          <div class="feature card-flat fade-in-up">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/><path d="M4 4l4 4M20 4l-4 4"/></svg>
+            </div>
+            <h3>Control de tiempos</h3>
+            <p>Establece fechas límite y alertas automáticas para que ningún documento se quede esperando. Cada paso tiene un responsable y un plazo.</p>
+          </div>
+          <div class="feature card-flat fade-in-up" data-delay="1">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 4v6c0 4-3.5 7.5-8 9-4.5-1.5-8-5-8-9V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <h3>Pista de auditoría</h3>
+            <p>Registro inmutable de cada acción: quién aprobó, cuándo y desde dónde. Ideal para cumplimiento normativo y auditorías internas.</p>
+          </div>
+          <div class="feature card-flat fade-in-up" data-delay="2">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+            </div>
+            <h3>Interfaz limpia</h3>
+            <p>Diseñada para minimizar la carga cognitiva. Tus flujos, documentos y aprobaciones en un solo lugar, sin ruido visual.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-od-id="stats">
+      <div class="container">
+        <p class="eyebrow text-center">EN CIFRAS</p>
+        <div class="grid-4">
+          <div class="stat text-center fade-in-up">
+            <div class="stat-num">12 <span class="stat-unit">K</span></div>
+            <div class="stat-label">Documentos gestionados cada mes</div>
+          </div>
+          <div class="stat text-center fade-in-up" data-delay="1">
+            <div class="stat-num">4</div>
+            <div class="stat-label">Años en el mercado sin interrupciones</div>
+          </div>
+          <div class="stat text-center fade-in-up" data-delay="2">
+            <div class="stat-num">48</div>
+            <div class="stat-label">Equipos activos en la plataforma</div>
+          </div>
+          <div class="stat text-center fade-in-up" data-delay="3">
+            <div class="stat-num">            99<span class="stat-unit">%</span></div>
+            <div class="stat-label">Documentos aprobados antes de su vencimiento</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-od-id="testimonial">
+      <div class="container">
+        <p class="eyebrow text-center">TESTIMONIO</p>
+        <div class="grid-1-2 items-center">
+          <div class="testimonial-author">
+            <div class="ph-img avatar-circle" aria-label="Foto de Carlos Ruiz" role="img"></div>
+            <div>
+              <p class="testimonial-name">Carlos Ruiz</p>
+              <p class="meta">COO, Innovatech</p>
+            </div>
+          </div>
+          <div class="fade-in-up">
+            <div class="quote-mark">"</div>
+            <blockquote class="quote">app-workflow eliminó los cuellos de botella en nuestras aprobaciones. Pasamos de 3 días a 2 horas en contratos complejos con varios firmantes.</blockquote>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section text-center" data-od-id="cta-strip">
+      <div class="container">
+        <div class="stack items-center mx-auto max-w-36ch">
+          <h2>Empieza a aprobar en minutos, no en semanas.</h2>
+          <p class="lead">Diseñado para equipos que valoran su tiempo.</p>
+          <a href="index.html" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Probar la app</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pagefoot" data-od-id="footer">
+    <div class="container">
+      <div class="row-between">
+        <span>© app-workflow · 2026</span>
+        <nav>
+          <a href="#features">Características</a>
+          <a href="mailto:hola@app-workflow.com">Contacto</a>
+          <a href="/tos.html">Términos de uso</a>
+          <a href="/privacidad.html">Política de privacidad</a>
+        </nav>
+        <span class="meta">Aprobaciones sin fricción</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      const stored = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (stored === 'dark' || (!stored && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.15 });
+      document.querySelectorAll('.fade-in-up').forEach(el => observer.observe(el));
+
+      const btn = document.getElementById('themeToggle');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme');
+          const next = current === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('theme', next);
+        });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: workflow-net
+
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/workflow-net}
+      auto-index-creation: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: >
+          flow.created:com.workflownet.flow.domain.event.FlowCreatedEvent,
+          flow.started:com.workflownet.flow.domain.event.FlowStartedEvent,
+          flow.document.approved:com.workflownet.flow.domain.event.DocumentApprovedEvent,
+          flow.document.rejected:com.workflownet.flow.domain.event.DocumentRejectedEvent,
+          flow.expired:com.workflownet.flow.domain.event.FlowExpiredEvent,
+          flow.completed:com.workflownet.flow.domain.event.FlowCompletedEvent,
+          email.send:com.workflownet.shared.event.EmailSendEvent,
+          email.failed:com.workflownet.shared.event.EmailFailedEvent
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: >
+          flow.created:com.workflownet.flow.domain.event.FlowCreatedEvent,
+          flow.started:com.workflownet.flow.domain.event.FlowStartedEvent,
+          flow.document.approved:com.workflownet.flow.domain.event.DocumentApprovedEvent,
+          flow.document.rejected:com.workflownet.flow.domain.event.DocumentRejectedEvent,
+          flow.expired:com.workflownet.flow.domain.event.FlowExpiredEvent,
+          flow.completed:com.workflownet.flow.domain.event.FlowCompletedEvent,
+          email.send:com.workflownet.shared.event.EmailSendEvent,
+          email.failed:com.workflownet.shared.event.EmailFailedEvent
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLE:false}
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+
+github:
+  client-id: ${GITHUB_CLIENT_ID:}
+  client-secret: ${GITHUB_CLIENT_SECRET:}
+
+workflow:
+  jwt:
+    secret: ${JWT_SECRET:workflow-net-default-secret-key-change-in-production}
+    expiration-ms: 86400000
+  document:
+    max-size-bytes: ${DOCUMENT_MAX_SIZE:2097152}
+    max-count: ${DOCUMENT_MAX_COUNT:5}
+    temp-storage: ${DOCUMENT_TEMP_STORAGE:./temp-documents}
+  flow:
+    grace-period-days: ${FLOW_GRACE_PERIOD_DAYS:3}
+    deadline-check-cron: ${DEADLINE_CHECK_CRON:0 0 2 * * ?}
+  email:
+    retry:
+      max-attempts: ${EMAIL_RETRY_MAX:5}
+      initial-delay-ms: 300000
+      multiplier: 3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+      mail:
+        enabled: false
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+logging:
+  level:
+    com.workflownet: ${LOG_LEVEL:DEBUG}
+    org.springframework.security: INFO
+    org.springframework.kafka: INFO
