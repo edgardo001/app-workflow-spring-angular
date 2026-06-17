@@ -7,7 +7,7 @@ spring:
 
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/workflow-net}
+      uri: mongodb://${MONGO_ROOT_USER:root}:${MONGO_ROOT_PASSWORD:changeme}@${MONGODB_HOST:localhost}:27017/${MONGO_DATABASE:workflow-spring}?authSource=admin
       auto-index-creation: true
 
   kafka:
@@ -60,6 +60,10 @@ spring:
 github:
   client-id: ${GITHUB_CLIENT_ID:}
   client-secret: ${GITHUB_CLIENT_SECRET:}
+  redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:8080/api/auth/github/callback}
+
+app:
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:4200}
 
 workflow:
   jwt:
@@ -103,5 +107,5 @@ logging:
     com.workflowspring: ${LOG_LEVEL:INFO}
     org.springframework: ${LOG_LEVEL_SPRING:WARN}
     org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
-    org.springframework.kafka: ${LOG_LEVEL_KAFKA:WARN}
-    org.apache.kafka: ${LOG_LEVEL_KAFKA:WARN}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:ERROR}
+    org.apache.kafka: ${LOG_LEVEL_KAFKA:ERROR}
