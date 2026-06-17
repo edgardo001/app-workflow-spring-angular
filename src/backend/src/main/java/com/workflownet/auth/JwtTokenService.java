@@ -18,8 +18,20 @@ public class JwtTokenService {
 
     private final SecretKey key;
 
-    public JwtTokenService(@Value("${jwt.secret}") String secret) {
+    public JwtTokenService(@Value("${workflow.jwt.secret}") String secret) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public String generateAuthToken(UserProfile user) {
+        return Jwts.builder()
+                .subject(user.getEmail())
+                .claim("name", user.getName())
+                .claim("avatarUrl", user.getAvatarUrl())
+                .claim("role", user.getRole())
+                .issuedAt(new Date())
+                .expiration(Date.from(Instant.now().plusSeconds(86400)))
+                .signWith(key)
+                .compact();
     }
 
     public String generateApprovalToken(String flowId, String email) {
@@ -53,7 +65,7 @@ public class JwtTokenService {
     @SuppressWarnings("unchecked")
     public List<String> getRolesFromToken(String token) {
         Jws<Claims> claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
-        List<String> roles = (List<String>) claims.getPayload().get("roles");
-        return roles != null ? roles : List.of("USER");
+        String role = claims.getPayload().get("role", String.class);
+        return role != null ? List.of("ROLE_" + role) : List.of("ROLE_USER");
     }
 }
