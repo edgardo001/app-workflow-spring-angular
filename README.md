@@ -1,96 +1,559 @@
-# Workflow Spring Angular
+# WorkflowNet
 
-Sistema avanzado de flujo de aprobación secuencial de documentos con Arquitectura Orientada a Eventos y SAGA. 
+Sistema de aprobación secuencial de documentos con **Arquitectura Orientada a Eventos** y **SAGA Orquestado**.
 
-Basado en Spring Boot v4.1, Angular v22, MongoDB v8.3 y Apache Kafka v4.3.0.
+Construido con Spring Boot, Angular, MongoDB y Apache Kafka.
 
 ---
 
-## 🚀 Arquitectura y Tecnologías
+## Arquitectura General
+
+```mermaid
+graph TB
+    subgraph Frontend["Frontend - Angular"]
+        UI[SPA UI]
+        PROXY[Proxy Inverso :4200 → :8080]
+    end
+
+    subgraph Backend["Backend - Spring Boot"]
+        REST[REST API]
+        ORCH[FlowOrchestratorService]
+        EMAIL[EmailSenderService]
+        AUDIT[AuditService]
+        SCHEDULER[Scheduler Expiración]
+    end
+
+    subgraph Infra["Infraestructura"]
+        KAFKA[Apache Kafka]
+        MONGO[(MongoDB)]
+        SMTP[Servidor SMTP]
+        GRAFANA[Grafana + Prometheus]
+    end
+
+    UI --> PROXY --> REST
+    REST --> ORCH
+    ORCH --> KAFKA
+    KAFKA --> EMAIL
+    EMAIL --> SMTP
+    ORCH --> MONGO
+    AUDIT --> MONGO
+    SCHEDULER --> KAFKA
+    MONGO --> GRAFANA
+```
+
+---
+
+## Stack Tecnológico
 
 | Capa | Tecnología |
 |---|---|
-| **Backend** | Spring Boot v4.1, JDK 17 (Vertical Slice + Clean Architecture) |
+| **Backend** | Spring Boot v4.1, JDK 17 |
 | **Frontend** | Angular v22, Tailwind CSS |
-| **Base de Datos** | MongoDB v8.3 (TTL Indexes, Unique Identifiers) |
-| **Mensajería** | Apache Kafka v4.3.0 (Event-Driven, Patrón SAGA Orquestado) |
-| **Despliegue** | Docker, Docker Compose, Traefik, GitHub Actions |
-| **Monitoreo** | Grafana, Prometheus (Endpoints Healthcheck / KPI) |
+| **Base de Datos** | MongoDB v8.3 |
+| **Mensajería** | Apache Kafka v4.3.0 |
+| **Despliegue** | Docker, Docker Compose, Traefik |
+| **Monitoreo** | Grafana, Prometheus |
 
-### Patrones de Diseño Implementados
-- **Event-Driven Architecture:** Todo el flujo del documento se maneja a través de tópicos en Kafka.
-- **SAGA Orquestado (`FlowOrchestratorService`):** Un componente central mapea el progreso secuencial y emite los eventos hacia Kafka para el siguiente aprobador.
-- **Consumidor Idempotente:** Controlado mediante IDs de evento (UUID) en MongoDB con índices únicos, evitando así el procesamiento de aprobaciones duplicadas si Kafka reintenta mensajes.
-- **Trazabilidad (Append-Only):** Log inmutable de auditoría (`flow_audit_log`) que almacena metadatos y evidencia (hash SHA-256) sin permitir `UPDATE` ni `DELETE`.
+### Compatibilidad de Node.js
+
+Angular 22 requiere una de las siguientes versiones de Node.js:
+
+| Node.js | Estado | Compatibilidad |
+|---------|--------|----------------|
+| **22.22.3+** | LTS | ✅ Soportado |
+| **24.15.0+** | LTS | ✅ Soportado |
+| **26.0.0+** | LTS | ✅ Soportado |
+| 25.x | No LTS | ❌ No soportado |
+| 21.x o inferior | EOL | ❌ No soportado |
+
+> ⚠️ **Importante:** Node.js 25.x es una versión impar (no LTS) y **no es compatible** con Angular 22. Usa siempre versiones pares (22, 24, 26).
+
+```bash
+# Verificar versión actual
+node --version
+
+# Cambiar versión (si usas nvm-windows)
+nvm use 22  # o 24, o 26
+
+# Cambiar versión (si usas fnm)
+fnm use 22  # o 24, o 26
+```
+
+### Gestores de Versiones de Node.js
+
+| Gestor | Plataforma | Instalación |
+|--------|------------|-------------|
+| **nvm-windows** | Windows | https://github.com/coreybutler/nvm-windows/releases |
+| **fnm** | Windows/Mac/Linux | `winget install Schniz.fnm` o https://github.com/Schniz/fnm |
+| **nvm** | Mac/Linux | https://github.com/nvm-sh/nvm |
+
+```bash
+# nvm-windows: instalar desde .exe en GitHub Releases
+# Después de instalar:
+nvm install 26
+nvm use 26
+
+# fnm: más rápido que nvm
+fnm install 26
+fnm use 26
+```
 
 ---
 
-## 🔐 Seguridad y Autenticación (BFF)
+## Arquitectura Vertical Slices
 
-La plataforma utiliza el protocolo **OAuth2 con GitHub** empleando el patrón de seguridad más estricto para aplicaciones de tipo SPA (Single Page Applications): **BFF (Backend-For-Frontend)**.
+Cada feature es una Slice independiente con su propio dominio, infraestructura y presentación:
 
-- **Flujo BFF:** Al autorizar la aplicación en GitHub, la redirección es capturada exclusivamente por el Backend de Spring Boot. El Backend canjea el código secreto por un JWT Token.
-- **HttpOnly Cookies:** El Backend envía al navegador el token sellado en una Cookie `HttpOnly` y `Secure`, evitando que el frontend (JavaScript) acceda al token. Esto mitiga vulnerabilidades como Cross-Site Scripting (XSS).
-- **Tokens Stateless (JWS) en Correos:** Los enlaces de aprobación por correo envían un token de un solo uso en formato JWS que permite identificar flujo, etapa y correo sin necesidad de mantener sesiones abiertas innecesarias.
+```mermaid
+graph LR
+    subgraph flow["flow"]
+        FD[domain/model]
+        FS[application/service]
+        FI[infrastructure/messaging]
+        FP[presentation]
+    end
+
+    subgraph auth["auth"]
+        AS[AuthService]
+        GH[GitHubOAuth]
+        JWT[JwtTokenService]
+        FILTER[JwtAuthFilter]
+    end
+
+    subgraph document["document"]
+        DS[DocumentService]
+        DC[DocumentController]
+        DD[domain]
+    end
+
+    subgraph audit["audit"]
+        AUS[AuditService]
+        AUL[FlowAuditLog]
+        AUR[AuditLogRepository]
+    end
+
+    subgraph shared["shared"]
+        EVT[Eventos Comunes]
+        CONFIG[Configuración]
+    end
+
+    flow --> shared
+    auth --> shared
+    document --> shared
+    audit --> shared
+```
 
 ---
 
-## 🔄 Funcionalidad Principal
+## Flujo de Aprobación Secuencial (SAGA)
 
-1. **Gestión Documental:** 
-   - Límite de carga: 5 documentos por flujo, 2MB máximo por documento.
-   - El documento real solo se guarda de forma temporal (en `./temp-documents`) para adjuntarlo por correo.
-   - Una vez finalizado el ciclo, se elimina el archivo físico y solo se preserva el Hash y metadata.
-2. **Aprobación Secuencial:** 
-   - El flujo viaja de participante en participante de manera ordenada.
-   - Se generan notificaciones automatizadas vía Email al iniciar, avanzar, aprobar o rechazar el flujo completo.
-3. **Control Automático (Expiración):** 
-   - Un Scheduler diario de Spring (`@Scheduled`) revisa límites de gracia (+3 días) y emite un evento a Kafka (`FlujoExpiradoEvent`) cerrando y notificando flujos abandonados.
-   - Apoyo de **Índices TTL en MongoDB** para limpieza autónoma de tokens temporales e IDs expirados.
-4. **Resiliencia de Envío de Correos:** 
-   - Sistema de reintentos asíncronos (`@RetryableTopic`) con *Backoff Exponencial*.
-   - **DLQ (Dead Letter Queue):** Los correos que fallen reiteradamente irán a un tópico especial de revisión (`email-sending-dlq`) para evitar bloquear los procesos principales.
-5. **Dashboard Maestro:**
-   - Panel KPI y métricas para Administradores (vía integración Grafana y consultas MongoDB).
-   - Tablas interactivas con paginación, filtros y ordenamientos sincronizados con la URL (`queryParams`).
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant BE as Backend
+    participant K as Kafka
+    participant E as Email Service
+    participant M as MongoDB
+    participant R as Receptor
+
+    U->>BE: Crear flujo con documentos
+    BE->>M: Guardar Flow (DRAFT)
+    BE->>K: FlowCreatedEvent
+    BE->>M: Registrar en AuditLog
+
+    U->>BE: Iniciar flujo
+    BE->>M: Flow → ACTIVE
+    BE->>K: FlowStartedEvent
+    BE->>E: EmailSendEvent
+    E->>R: Email con enlace JWS
+
+    R->>BE: Aprobar (token JWS)
+    BE->>M: Verificar idempotencia
+    BE->>M: Avanzar currentStep
+    BE->>K: DocumentApprovedEvent
+    BE->>E: Siguiente aprobador
+
+    alt Último aprobador
+        BE->>M: Flow → COMPLETED
+        BE->>K: FlowCompletedEvent
+        BE->>E: Email de finalización
+    end
+```
 
 ---
 
-## 🛠️ Entorno de Desarrollo Local
+## Event-Driven Architecture
 
-### Pre-requisitos
+```mermaid
+graph TB
+    subgraph Producer["Productores"]
+        FS[FlowService]
+        FOS[FlowOrchestratorService]
+        SCHED[Scheduler Expiración]
+    end
+
+    subgraph KafkaTopics["Kafka Topics"]
+        T1[flow.created]
+        T2[flow.started]
+        T3[flow.document.approved]
+        T4[flow.document.rejected]
+        T5[flow.completed]
+        T6[flow.expired]
+        T7[email.send]
+        T8[email.failed]
+    end
+
+    subgraph Consumers["Consumidores"]
+        FEC[FlowEventConsumer]
+        ESC[EmailSenderService]
+        DLQ[DLQ Handler]
+    end
+
+    FS --> T1
+    FOS --> T2
+    FOS --> T3
+    FOS --> T4
+    FOS --> T5
+    SCHED --> T6
+
+    T1 --> FEC
+    T3 --> FEC
+    T4 --> FEC
+    T6 --> FEC
+    T7 --> ESC
+    T8 --> DLQ
+```
+
+---
+
+## Autenticación BFF (Backend-For-Frontend)
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant FE as Frontend
+    participant BE as Backend
+    participant GH as GitHub OAuth
+
+    U->>FE: Click "Login con GitHub"
+    FE->>GH: Redirigir a GitHub
+    GH->>U: Autorizar aplicación
+    GH->>BE: Callback con código (HTTP Only)
+
+    BE->>GH: Canjear código por token
+    GH-->>BE: access_token
+
+    BE->>BE: Crear JWT interno
+    BE->>U: Set-Cookie: HttpOnly + Secure
+
+    U->>FE: Request autenticado
+    FE->>BE: Cookie automática
+    BE->>BE: Validar JWT de cookie
+    BE-->>FE: 200 OK + datos
+```
+
+---
+
+## Modelo de Dominio (Flow)
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT
+    DRAFT --> ACTIVE : start()
+    ACTIVE --> PENDING_APPROVAL : approve() [no último]
+    ACTIVE --> COMPLETED : approve() [último]
+    ACTIVE --> REJECTED : reject()
+    PENDING_APPROVAL --> ACTIVE : approve() [no último]
+    PENDING_APPROVAL --> COMPLETED : approve() [último]
+    PENDING_APPROVAL --> REJECTED : reject()
+    ACTIVE --> EXPIRED : expire()
+    PENDING_APPROVAL --> EXPIRED : expire()
+    DRAFT --> CANCELLED : cancel()
+    ACTIVE --> CANCELLED : cancel()
+    PENDING_APPROVAL --> CANCELLED : cancel()
+    COMPLETED --> [*]
+    REJECTED --> [*]
+    EXPIRED --> [*]
+    CANCELLED --> [*]
+```
+
+---
+
+## Funcionalidad Principal
+
+### Gestión Documental
+- **Límite:** 5 documentos por flujo, 2MB máximo por documento
+- Los documentos se guardan temporalmente en `./temp-documents` para adjuntar por correo
+- Al finalizar, se elimina el archivo físico y solo se preserva el Hash SHA-256 + metadata
+
+### Aprobación Secuencial
+- El flujo viaja de participante en participante de manera ordenada
+- Notificaciones automatizadas vía email al iniciar, avanzar, aprobar o rechazar
+
+### Control de Expiración
+- Scheduler diario (`@Scheduled`) revisa límites de gracia (+3 días)
+- Emite `FlowExpiredEvent` a Kafka para cerrar flujos abandonados
+- Índices TTL en MongoDB para limpieza autónoma de tokens expirados
+
+### Resiliencia de Email
+- Reintentos asíncronos (`@RetryableTopic`) con backoff exponencial
+- **DLQ (Dead Letter Queue):** Correos fallidos van a `email-sending-dlq` para revisión
+
+### Dashboard Maestro
+- Panel KPI y métricas para administradores
+- Tablas interactivas con paginación, filtros y ordenamientos sincronizados con la URL
+
+---
+
+## Seguridad
+
+| Mecanismo | Descripción |
+|---|---|
+| **BFF Pattern** | Backend canjea código OAuth por JWT, frontend nunca maneja tokens |
+| **HttpOnly Cookies** | Token en cookie `HttpOnly` + `Secure`, mitiga XSS |
+| **JWS Tokens** | Tokens stateless en enlaces de correo para aprobación |
+| **Idempotencia** | UUIDs únicos en MongoDB previenen procesamiento duplicado |
+| **Audit Log** | Log inmutable (`flow_audit_log`) con hash SHA-256 |
+
+---
+
+## Desarrollo Local
+
+### Requisitos
+
 - Docker & Docker Compose
-- JDK 17 o superior
-- Node.js v22+
-- GitHub OAuth App (URL de Callback: `http://localhost:4200/api/auth/github/callback`)
+- JDK 17+
+- **Node.js 22.x, 24.x o 26.x** (versiones LTS) — ver [compatibilidad](#compatibilidad-de-nodejs)
+- GitHub OAuth App (Callback: `http://localhost:4200/api/auth/github/callback`)
 
-### Instalación Rápida
+### Inicio rápido
 
-1. Renombra o copia `.env.example` a `.env` en la raíz del proyecto.
-2. Llena las credenciales de Github, MongoDB y Mail SMTP. **No subas este archivo a Git**.
-3. Ejecuta el script de inicio global:
-   ```cmd
-   .\start-dev.bat
-   ```
+```bash
+# 1. Clonar y configurar variables de entorno
+cp .env.example .env
+# Editar .env con valores reales
 
-Este script automatiza:
-- Levanta contenedores Docker (Kafka y MongoDB).
-- Inyecta variables locales del `.env` en memoria.
-- Ejecuta el servidor Backend (Gradle, Puerto 8080).
-- Ejecuta el servidor Frontend Vite (npm, Puerto 4200 con Proxy Inverso hacia el 8080).
+# 2. Iniciar todo (MongoDB, Kafka + Backend + Frontend)
+.\start-dev.bat
+```
+
+El script levanta:
+- **Docker:** MongoDB (:27017) + Kafka (:9092)
+- **Backend:** Gradle en puerto 8080
+- **Frontend:** Vite en puerto 4200 (proxy inverso → 8080)
+
+### Comandos Individuales
+
+```bash
+# Docker (MongoDB + Kafka)
+docker compose -f src/docker/docker-compose.yml --env-file .env up -d mongodb kafka
+
+# Backend
+cd src/backend && ./gradlew bootRun
+
+# Frontend (con proxy inverso hacia backend)
+cd src/frontend && ng serve --proxy-config proxy.conf.json
+```
+
+### Proxy Inverso (Desarrollo)
+
+El archivo `src/frontend/proxy.conf.json` redirige las peticiones `/api` del frontend al backend:
+
+```json
+{
+  "/api": {
+    "target": "http://127.0.0.1:8080",
+    "secure": false
+  }
+}
+```
+
+| Puerto | Servicio | Descripción |
+|--------|----------|-------------|
+| 4200 | Frontend | Angular DevServer |
+| 8080 | Backend | Spring Boot API |
+
+Las llamadas a `http://localhost:4200/api/*` se proxean automáticamente a `http://localhost:8080/api/*`.
+
+**Swagger UI (desarrollo):** `http://localhost:8080/swagger-ui.html`
+
+**Swagger UI (producción):** `https://api.tu-dominio.com/swagger-ui.html`
+
+### Variables de entorno (Desarrollo)
+
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `MONGO_ROOT_USER` | Usuario root de MongoDB | Sí |
+| `MONGO_ROOT_PASSWORD` | Contraseña root de MongoDB | Sí |
+| `GITHUB_CLIENT_ID` | Client ID de GitHub OAuth | Sí |
+| `GITHUB_CLIENT_SECRET` | Client Secret de GitHub OAuth | Sí |
+| `GITHUB_REDIRECT_URI` | URI de callback (desarrollo: `http://localhost:4200/api/auth/github/callback`) | Sí |
+| `JWT_SECRET` | Clave JWT (mínimo 64 caracteres) | Sí |
+| `MAIL_HOST` | Servidor SMTP | Sí |
+| `MAIL_USERNAME` | Usuario SMTP | Sí |
+| `MAIL_PASSWORD` | Contraseña SMTP | Sí |
 
 ---
 
-## 📋 Flujo de Trabajo y SDD (Spec-Driven Development)
+## Flujo de Trabajo
 
-Este proyecto está regido estrictamente por SpecKit y TDD:
-- Nunca trabajar directo en rama `main`. Usa ramas aisladas (worktrees) y crea **Pull Requests**.
-- Todos los cambios deben estar respaldados por **Test Unitarios (TDD)** ejecutados y pasando antes de programar funcionalidad.
-- Debate arquitectónico entre Agentes AI antes de escribir código permanente.
-- Registro estricto de las decisiones tomadas en la bitácora de arquitectura.
+Este proyecto utiliza **SpecKit SDD** (Spec-Driven Development) y **TDD**:
+
+- Nunca trabajar directo en `main` — usar ramas aisladas y Pull Requests
+- Todos los cambios deben tener tests unitarios pasando
+- Debate arquitectónico antes de código permanente
+- Decisiones registradas en la bitácora de arquitectura
 
 ---
 
-## 📜 Licencia
+## Despliegue en Producción
 
-Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) para más detalles.
+El archivo `src/docker/docker-compose.yml` levanta:
+1. **Traefik** — Proxy reverso con TLS automático (Let's Encrypt + Cloudflare)
+2. **MongoDB 8** — Base de datos
+3. **Kafka + Zookeeper** — Mensajería event-driven
+4. **Backend** — Spring Boot API
+5. **Frontend** — Angular SPA (Nginx)
+6. **Prometheus** — Métricas
+7. **Grafana** — Dashboards KPI
+
+### Comandos Principales
+
+```bash
+# Construir todas las imágenes
+docker compose -f src/docker/docker-compose.yml --env-file .env build
+
+# Desplegar la aplicación
+docker compose -f src/docker/docker-compose.yml --env-file .env up -d
+
+# Construir y desplegar en un solo paso
+docker compose -f src/docker/docker-compose.yml --env-file .env up -d --build
+
+# Detener todos los servicios
+docker compose -f src/docker/docker-compose.yml --env-file .env down
+
+# Detener + borrar volúmenes y redes (BD incluida)
+docker compose -f src/docker/docker-compose.yml --env-file .env down --volumes
+```
+
+### Verificar Servicios
+
+```bash
+# Ver estado de contenedores
+docker compose -f src/docker/docker-compose.yml ps
+
+# Ver logs en tiempo real
+docker compose -f src/docker/docker-compose.yml logs -f
+
+# Ver logs de un servicio específico
+docker compose -f src/docker/docker-compose.yml logs -f backend
+docker compose -f src/docker/docker-compose.yml logs -f traefik
+```
+
+### Servicios desplegados
+
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| Traefik | 80, 443 | Reverse proxy con TLS automático (Let's Encrypt) |
+| Backend | 8080 | Spring Boot API |
+| Frontend | 80 | Angular SPA (Nginx) |
+| MongoDB | 27017 | Base de datos |
+| Kafka | 9092 | Mensajería event-driven |
+| Prometheus | 9090 | Métricas |
+| Grafana | 3000 | Dashboards KPI |
+
+### Redes Docker
+
+- `mvp-network` — Comunicación interna entre servicios
+- `traefik-net` — Integración con Traefik para descubrimiento automático
+
+### VPS con 1vCPU / 1GB RAM
+
+Compilar imágenes Docker en un VPS de 1GB RAM puede agotar la memoria. Se recomienda agregar swap:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+# Persistente al reinicio:
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Para verificar: `swapon --show` o `free -h`.
+
+---
+
+## Configurar Cloudflare + Let's Encrypt (Traefik TLS)
+
+### 1. Crear API Token en Cloudflare
+
+1. Ir a [Cloudflare Dashboard → API Tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. Click **"Create Token"**
+3. Seleccionar **"Edit zone DNS"** (template)
+4. Configurar permisos:
+   - **Permissions**: `Zone → DNS → Edit`
+   - **Resources**: `Include → Specific zone → tu-dominio.com`
+5. Click **"Continue to summary"** → **"Create Token"**
+6. Copiar el token → asignar a `CF_DNS_API_TOKEN` en `.env`
+
+### 2. Configurar Registros DNS en Cloudflare
+
+Para cada dominio, crear registros DNS apuntando al servidor:
+
+| Tipo | Nombre | Contenido | Proxy |
+|------|--------|-----------|-------|
+| A | `app` | `IP_DEL_SERVIDOR` | DNS only (gray cloud) |
+| A | `api` | `IP_DEL_SERVIDOR` | DNS only (gray cloud) |
+
+> **Importante**: Desactivar el proxy (gray cloud) para que Traefik pueda validar los certificados.
+
+### 3. Generar Hash para Dashboard Traefik
+
+```bash
+# Con contenedor Docker (recomendado)
+docker run --rm httpd:alpine htpasswd -nb admin tu-contrasena
+
+# Resultado: admin:$apr1$xyz$...
+# IMPORTANTE: Duplicar los '$' en el .env:
+# TRAEFIK_PASS_HASH=admin:$$apr1$$xyz$$...
+```
+
+### 4. Variables en `.env`
+
+```bash
+# Cloudflare
+CF_DNS_API_TOKEN=tu-token-api-cloudflare
+
+# Traefik
+ACME_EMAIL=admin@tu-dominio.com
+TRAEFIK_PASS_HASH=admin:$$apr1$$xyz$$...
+TRAEFIK_DOMAIN=api.tu-dominio.com
+
+# Dominios
+BACKEND_DOMAIN=api.tu-dominio.com
+FRONTEND_DOMAIN=app.tu-dominio.com
+```
+
+### 5. Verificar Certificados
+
+Una vez desplegado, Traefik automáticamente:
+1. Detecta los dominios configurados en las labels Docker
+2. Valida con Cloudflare DNS challenge
+3. Emite certificados Let's Encrypt
+4. Los renueva automáticamente antes de expirar
+
+Para verificar:
+```bash
+# Ver logs de Traefik
+docker logs workflow-traefik
+
+# Verificar certificado
+curl -v https://api.tu-dominio.com 2>&1 | grep -A5 "SSL certificate"
+```
+
+---
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE)
