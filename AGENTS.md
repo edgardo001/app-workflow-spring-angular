@@ -84,7 +84,7 @@ Available commands:
 - `start-dev.bat` — Run locally (Docker for MongoDB + Kafka, local for backend + frontend)
 - Backend: `./gradlew bootRun` (or `gradlew.bat bootRun` on Windows)
 - Frontend: `ng serve --proxy-config proxy.conf.json`
-- Docker Compose: `docker-compose -f docker-compose.yml up`
+- Docker Compose: `docker-compose -f src/docker/docker-compose.yml --env-file .env up`
 
 ---
 
