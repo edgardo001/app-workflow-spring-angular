@@ -324,7 +324,7 @@ stateDiagram-v2
 - Docker & Docker Compose
 - JDK 17+
 - **Node.js 22.x, 24.x o 26.x** (versiones LTS) — ver [compatibilidad](#compatibilidad-de-nodejs)
-- GitHub OAuth App (Callback: `http://localhost:4200/api/auth/github/callback`)
+- GitHub OAuth App (Callback: `http://localhost:8080/api/auth/github/callback`)
 
 ### Inicio rápido
 
@@ -341,6 +341,34 @@ El script levanta:
 - **Docker:** MongoDB (:27017) + Kafka (:9092)
 - **Backend:** Gradle en puerto 8080
 - **Frontend:** Vite en puerto 4200 (proxy inverso → 8080)
+
+### Detener todo
+
+```bash
+# Detener todos los procesos y contenedores
+.\kill-dev.bat
+```
+
+El script detiene:
+- Procesos Java (Backend / Gradle)
+- Procesos Node.js (Frontend / Angular)
+- Procesos en puertos 8080 y 4200 (conexiones huérfanas)
+- Contenedores Docker (MongoDB + Kafka)
+
+### Matar procesos por puerto (Windows)
+
+Si necesitas liberar un puerto específico manualmente:
+
+```bash
+# Ver qué procesos están usando un puerto
+netstat -ano | findstr :8080
+
+# Matar el proceso por PID
+taskkill /F /PID <PID>
+
+# O buscar y matar todos los java
+taskkill /F /IM java.exe
+```
 
 ### Comandos Individuales
 
@@ -387,7 +415,7 @@ Las llamadas a `http://localhost:4200/api/*` se proxean automáticamente a `http
 | `MONGO_ROOT_PASSWORD` | Contraseña root de MongoDB | Sí |
 | `GITHUB_CLIENT_ID` | Client ID de GitHub OAuth | Sí |
 | `GITHUB_CLIENT_SECRET` | Client Secret de GitHub OAuth | Sí |
-| `GITHUB_REDIRECT_URI` | URI de callback (desarrollo: `http://localhost:4200/api/auth/github/callback`) | Sí |
+| `GITHUB_REDIRECT_URI` | URI de callback (desarrollo: `http://localhost:8080/api/auth/github/callback`) | Sí |
 | `JWT_SECRET` | Clave JWT (mínimo 64 caracteres) | Sí |
 | `MAIL_HOST` | Servidor SMTP | Sí |
 | `MAIL_USERNAME` | Usuario SMTP | Sí |
