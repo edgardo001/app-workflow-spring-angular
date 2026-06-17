@@ -19,7 +19,7 @@ public class JwtTokenService {
     private final SecretKey key;
 
     public JwtTokenService(@Value("${workflow.jwt.secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.key = Keys.hmacShaKeyFor(secret.trim().getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateAuthToken(UserProfile user) {
