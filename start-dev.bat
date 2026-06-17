@@ -1,17 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
 
+set "ROOT_DIR=%~dp0"
+
 :: Load environment variables from .env file
-if exist "%~dp0.env" (
+if exist "%ROOT_DIR%.env" (
     echo Loading .env file...
-    for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ROOT_DIR%.env") do (
         set "KEY=%%A"
         set "VALUE=%%B"
-        if not "!KEY:~0,1!"=="#" if not "!KEY!"=="" (
+        if defined KEY if defined VALUE (
             set "!KEY!=!VALUE!"
         )
     )
 )
+
+:: Check Docker is running
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo Error: Docker is not running or not installed.
+    echo Please start Docker Desktop and try again.
+    pause
+    exit /b 1
+)
+
 where java >nul 2>&1
 if errorlevel 1 (
     echo Error: Java ^(JDK 17^) not found in PATH.
@@ -26,11 +38,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set "ROOT_DIR=%~dp0"
-
 echo.
 echo [1/3] Starting Docker Compose for MongoDB and Kafka...
-docker-compose -f "%ROOT_DIR%docker-compose.yml" up -d mongodb kafka
+docker-compose -f "%ROOT_DIR%src\docker\docker-compose.yml" --env-file "%ROOT_DIR%.env" up -d mongodb kafka
 
 echo Waiting 10 seconds for containers to start...
 ping -n 10 127.0.0.1 >nul
@@ -42,8 +52,12 @@ start "WorkflowNet-Backend" cmd.exe /k gradlew.bat bootRun
 popd
 
 echo.
-echo [3/3] Starting Angular Frontend...
+echo [3/3] Installing frontend dependencies and starting Angular...
 pushd "%ROOT_DIR%src\frontend"
+if not exist "node_modules" (
+    echo Installing frontend dependencies...
+    call npm install
+)
 start "WorkflowNet-Frontend" cmd.exe /k npm start -- --proxy-config proxy.conf.json --open
 popd
 
@@ -61,6 +75,6 @@ echo Press any key to stop all services...
 pause >nul
 
 echo Shutting down...
-docker-compose -f "%ROOT_DIR%docker-compose.yml" down
+docker-compose -f "%ROOT_DIR%src\docker\docker-compose.yml" --env-file "%ROOT_DIR%.env" down
 echo Done.
 pause
