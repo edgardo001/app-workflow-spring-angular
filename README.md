@@ -324,7 +324,7 @@ stateDiagram-v2
 - Docker & Docker Compose
 - JDK 17+
 - **Node.js 22.x, 24.x o 26.x** (versiones LTS) — ver [compatibilidad](#compatibilidad-de-nodejs)
-- GitHub OAuth App (Callback: `http://localhost:4200/api/auth/github/callback`)
+- GitHub OAuth App (Callback: `http://localhost:8080/api/auth/github/callback`)
 
 ### Inicio rápido
 
@@ -341,6 +341,34 @@ El script levanta:
 - **Docker:** MongoDB (:27017) + Kafka (:9092)
 - **Backend:** Gradle en puerto 8080
 - **Frontend:** Vite en puerto 4200 (proxy inverso → 8080)
+
+### Detener todo
+
+```bash
+# Detener todos los procesos y contenedores
+.\kill-dev.bat
+```
+
+El script detiene:
+- Procesos Java (Backend / Gradle)
+- Procesos Node.js (Frontend / Angular)
+- Procesos en puertos 8080 y 4200 (conexiones huérfanas)
+- Contenedores Docker (MongoDB + Kafka)
+
+### Matar procesos por puerto (Windows)
+
+Si necesitas liberar un puerto específico manualmente:
+
+```bash
+# Ver qué procesos están usando un puerto
+netstat -ano | findstr :8080
+
+# Matar el proceso por PID
+taskkill /F /PID <PID>
+
+# O buscar y matar todos los java
+taskkill /F /IM java.exe
+```
 
 ### Comandos Individuales
 
@@ -387,11 +415,35 @@ Las llamadas a `http://localhost:4200/api/*` se proxean automáticamente a `http
 | `MONGO_ROOT_PASSWORD` | Contraseña root de MongoDB | Sí |
 | `GITHUB_CLIENT_ID` | Client ID de GitHub OAuth | Sí |
 | `GITHUB_CLIENT_SECRET` | Client Secret de GitHub OAuth | Sí |
-| `GITHUB_REDIRECT_URI` | URI de callback (desarrollo: `http://localhost:4200/api/auth/github/callback`) | Sí |
+| `GITHUB_REDIRECT_URI` | URI de callback (desarrollo: `http://localhost:8080/api/auth/github/callback`) | Sí |
 | `JWT_SECRET` | Clave JWT (mínimo 64 caracteres) | Sí |
 | `MAIL_HOST` | Servidor SMTP | Sí |
 | `MAIL_USERNAME` | Usuario SMTP | Sí |
 | `MAIL_PASSWORD` | Contraseña SMTP | Sí |
+
+### Diagnóstico y Resolución de Problemas (Troubleshooting)
+
+#### Error: `Command failed with error 13 (Unauthorized): 'Command find requires authentication'`
+* **Causa:** Existencia de una clase `MongoConfig.java` que extiende de `AbstractMongoClientConfiguration` en `com.workflowspring.config` que anula la autoconfiguración nativa de Spring Boot e intenta conectarse sin credenciales a `localhost:27017`.
+* **Solución:** Eliminar el archivo `MongoConfig.java`. Esto forzará a Spring Boot a usar su autoconfiguración nativa leyendo la propiedad `spring.data.mongodb.uri` de `application.yml`.
+
+#### Error: `java.lang.IllegalArgumentException: state should be: databaseName does not contain ' '`
+* **Causa:** Espacios en blanco al final de las variables de entorno en el script por lotes de Windows (`cmd.exe`), causados por espaciado incorrecto antes de los encadenadores `&&`. Ejemplo: `set VAR=VAL && set VAR2=VAL2` inyecta un espacio al final de `VAR`.
+* **Solución:** Escapar las comillas de asignación y eliminar los espacios previos a `&&` en los scripts `.bat`:
+  ```bat
+  set "MONGO_DATABASE=%MONGO_DATABASE%"&& set "VAR=%VAR%"
+  ```
+
+#### Error: Cambios en credenciales del `.env` no se aplican en MongoDB
+* **Causa:** Las credenciales root de MongoDB se configuran únicamente durante la creación inicial del volumen de datos del contenedor Docker.
+* **Solución:** Recrear el contenedor limpiando los volúmenes de desarrollo antiguos:
+  ```bash
+  # Detener contenedores y limpiar volúmenes del compose
+  docker compose -f src/docker/docker-compose.yml --env-file .env down -v
+  
+  # Limpieza general de volúmenes huérfanos locales si es necesario
+  docker volume prune -f
+  ```
 
 ---
 
@@ -403,6 +455,83 @@ Este proyecto utiliza **SpecKit SDD** (Spec-Driven Development) y **TDD**:
 - Todos los cambios deben tener tests unitarios pasando
 - Debate arquitectónico antes de código permanente
 - Decisiones registradas en la bitácora de arquitectura
+
+### Proceso para Crear un Pull Request (PR)
+
+Para contribuir de forma manual y seguir la metodología del proyecto, sigue los siguientes pasos:
+
+#### 1. Crear una Rama de Desarrollo
+Nunca trabajes en la rama `main`. Crea una rama con nombre descriptivo y prefijo de tipo de cambio (ej. `fix/`, `feat/`, `chore/`, `docs/`):
+```bash
+git checkout -b <tipo-de-rama>/<nombre-descriptivo>
+# Ejemplo: git checkout -b fix/mongo-auth-and-startup
+```
+
+#### 2. Confirmar los Cambios en Commits Atómicos
+Agrupa tus cambios de forma lógica y realiza commits pequeños con mensajes claros:
+```bash
+# Registrar archivos para el commit
+git add <archivo-modificado>
+
+# Crear el commit
+git commit -m "<tipo-de-commit>(<alcance>): <descripcion corta en minuscula>"
+# Ejemplo: git commit -m "fix(backend): enable native mongo autoconfiguration with credentials"
+```
+
+#### 3. Subir la Rama al Repositorio Remoto
+Envía tu rama local a GitHub:
+```bash
+git push origin <nombre-de-la-rama>
+# Ejemplo: git push origin fix/mongo-auth-and-startup
+```
+
+#### 4. Crear el Pull Request usando GitHub CLI (`gh`)
+Si usas `gh cli`, puedes gestionar todo el flujo desde la terminal:
+
+* **Iniciar sesión (si no estás autenticado):**
+  ```bash
+  gh auth login
+  ```
+* **Crear el Pull Request de forma no interactiva (pasando título y cuerpo):**
+  ```bash
+  gh pr create --title "<titulo-del-pr>" --body "<descripcion-del-cambio>"
+  ```
+* **Crear el Pull Request de forma interactiva (asistida en consola):**
+  ```bash
+  gh pr create
+  ```
+* **Revisar Pull Requests abiertos en el repositorio:**
+  ```bash
+  gh pr list
+  ```
+* **Ver el estado de tus Pull Requests actuales:**
+  ```bash
+  gh pr status
+  ```
+
+#### 5. Integrar (Merge) el Pull Request
+Una vez revisado y validado el PR, se debe integrar a la rama principal `main`. Puedes hacerlo de dos formas:
+
+##### A. Desde la Terminal con GitHub CLI (`gh`)
+* **Hacer merge interactivo (te preguntará el tipo de merge y si deseas borrar la rama local y remota):**
+  ```bash
+  gh pr merge
+  ```
+* **Hacer merge directo (estilo Squash, que consolida todos los commits y limpia la rama):**
+  ```bash
+  gh pr merge --squash --delete-branch
+  ```
+* **Hacer merge tradicional (crea un commit de fusión):**
+  ```bash
+  gh pr merge --merge --delete-branch
+  ```
+
+##### B. Desde la Interfaz Web de GitHub
+1. Ve a la pestaña **Pull Requests** en tu repositorio en GitHub.
+2. Selecciona tu PR abierto.
+3. Al final de la página de discusión, haz clic en **Merge pull request** (o elige *Squash and merge* en la flecha desplegable).
+4. Haz clic en **Confirm merge**.
+5. Presiona **Delete branch** para eliminar la rama de desarrollo ya integrada y mantener el repositorio limpio.
 
 ---
 

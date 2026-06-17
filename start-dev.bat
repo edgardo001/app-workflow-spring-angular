@@ -10,7 +10,9 @@ if exist "%ROOT_DIR%.env" (
         set "KEY=%%A"
         set "VALUE=%%B"
         if defined KEY if defined VALUE (
-            set "!KEY!=!VALUE!"
+            set "TMPVAL=!VALUE!"
+            if "!TMPVAL:~-1!"=="^M" set "TMPVAL=!TMPVAL:~0,-1!"
+            set "!KEY!=!TMPVAL!"
         )
     )
 )
@@ -48,7 +50,9 @@ ping -n 10 127.0.0.1 >nul
 echo.
 echo [2/3] Starting Spring Boot Backend...
 pushd "%ROOT_DIR%src\backend"
-start "WorkflowNet-Backend" cmd.exe /k gradlew.bat bootRun
+set "SERVER_PORT=8080"
+:: Pass MongoDB components (Spring Boot builds URI internally)
+start "WorkflowNet-Backend" cmd.exe /k "set \"MONGO_ROOT_USER=%MONGO_ROOT_USER%\"&&set \"MONGO_ROOT_PASSWORD=%MONGO_ROOT_PASSWORD%\"&&set \"MONGO_DATABASE=%MONGO_DATABASE%\"&&set \"GITHUB_CLIENT_ID=%GITHUB_CLIENT_ID%\"&&set \"GITHUB_CLIENT_SECRET=%GITHUB_CLIENT_SECRET%\"&&set \"GITHUB_REDIRECT_URI=%GITHUB_REDIRECT_URI%\"&&set \"APP_FRONTEND_URL=%APP_FRONTEND_URL%\"&&set \"JWT_SECRET=%JWT_SECRET%\"&&set \"SERVER_PORT=8080\"&&set \"SPRINGDOC_ENABLED=%SPRINGDOC_ENABLED%\"&&set \"LOG_LEVEL_KAFKA=%LOG_LEVEL_KAFKA%\"&&gradlew.bat bootRun"
 popd
 
 echo.

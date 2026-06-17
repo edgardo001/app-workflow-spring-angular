@@ -25,8 +25,8 @@ public class GitHubOAuthService {
             @Value("${github.client-id}") String clientId,
             @Value("${github.client-secret}") String clientSecret) {
         this.restTemplate = new RestTemplate();
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
+        this.clientId = clientId.trim();
+        this.clientSecret = clientSecret.trim();
     }
 
     public String exchangeCodeForToken(String code) {
