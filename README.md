@@ -456,6 +456,59 @@ Este proyecto utiliza **SpecKit SDD** (Spec-Driven Development) y **TDD**:
 - Debate arquitectónico antes de código permanente
 - Decisiones registradas en la bitácora de arquitectura
 
+### Proceso para Crear un Pull Request (PR)
+
+Para contribuir de forma manual y seguir la metodología del proyecto, sigue los siguientes pasos:
+
+#### 1. Crear una Rama de Desarrollo
+Nunca trabajes en la rama `main`. Crea una rama con nombre descriptivo y prefijo de tipo de cambio (ej. `fix/`, `feat/`, `chore/`, `docs/`):
+```bash
+git checkout -b <tipo-de-rama>/<nombre-descriptivo>
+# Ejemplo: git checkout -b fix/mongo-auth-and-startup
+```
+
+#### 2. Confirmar los Cambios en Commits Atómicos
+Agrupa tus cambios de forma lógica y realiza commits pequeños con mensajes claros:
+```bash
+# Registrar archivos para el commit
+git add <archivo-modificado>
+
+# Crear el commit
+git commit -m "<tipo-de-commit>(<alcance>): <descripcion corta en minuscula>"
+# Ejemplo: git commit -m "fix(backend): enable native mongo autoconfiguration with credentials"
+```
+
+#### 3. Subir la Rama al Repositorio Remoto
+Envía tu rama local a GitHub:
+```bash
+git push origin <nombre-de-la-rama>
+# Ejemplo: git push origin fix/mongo-auth-and-startup
+```
+
+#### 4. Crear el Pull Request usando GitHub CLI (`gh`)
+Si usas `gh cli`, puedes gestionar todo el flujo desde la terminal:
+
+* **Iniciar sesión (si no estás autenticado):**
+  ```bash
+  gh auth login
+  ```
+* **Crear el Pull Request de forma no interactiva (pasando título y cuerpo):**
+  ```bash
+  gh pr create --title "<titulo-del-pr>" --body "<descripcion-del-cambio>"
+  ```
+* **Crear el Pull Request de forma interactiva (asistida en consola):**
+  ```bash
+  gh pr create
+  ```
+* **Revisar Pull Requests abiertos en el repositorio:**
+  ```bash
+  gh pr list
+  ```
+* **Ver el estado de tus Pull Requests actuales:**
+  ```bash
+  gh pr status
+  ```
+
 ---
 
 ## Despliegue en Producción
