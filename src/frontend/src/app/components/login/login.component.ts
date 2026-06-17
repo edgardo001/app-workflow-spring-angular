@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -35,7 +35,18 @@ import { AuthService } from '../../services/auth.service';
 export class LoginComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   theme = signal(document.documentElement.getAttribute('data-theme') || 'light');
+
+  ngOnInit() {
+    // With BFF pattern, we don't expect a token in the URL.
+    // If the user lands here but already has an active cookie session, redirect to dashboard.
+    this.auth.checkAuth().subscribe(isAuthenticated => {
+      if (isAuthenticated) {
+        this.router.navigate(['/dashboard']);
+      }
+    });
+  }
 
   login(): void {
     this.auth.loginWithGitHub();

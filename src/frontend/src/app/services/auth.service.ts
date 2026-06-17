@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, of, map, catchError } from 'rxjs';
 
 export interface User {
   id: string;
@@ -15,34 +15,28 @@ export interface User {
 export class AuthService {
   private readonly userSignal = signal<User | null>(null);
   readonly user = this.userSignal.asReadonly();
-  private readonly tokenSignal = signal<string | null>(localStorage.getItem('auth_token'));
-  readonly token = this.tokenSignal.asReadonly();
 
   constructor(
     private http: HttpClient,
     private router: Router
   ) {
-    if (this.tokenSignal()) {
-      this.fetchProfile().subscribe();
-    }
+    this.checkAuth().subscribe();
   }
 
   get isAuthenticated(): boolean {
-    return !!this.tokenSignal();
+    return this.userSignal() !== null;
+  }
+
+  checkAuth(): Observable<boolean> {
+    if (this.userSignal()) return of(true);
+    return this.fetchProfile().pipe(
+      map(() => true),
+      catchError(() => of(false))
+    );
   }
 
   loginWithGitHub(): void {
     window.location.href = '/api/auth/github';
-  }
-
-  handleOAuthCallback(code: string): Observable<{ token: string; user: User }> {
-    return this.http.post<{ token: string; user: User }>('/api/auth/github/callback', { code }).pipe(
-      tap(res => {
-        localStorage.setItem('auth_token', res.token);
-        this.tokenSignal.set(res.token);
-        this.userSignal.set(res.user);
-      })
-    );
   }
 
   fetchProfile(): Observable<User> {
@@ -52,9 +46,15 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem('auth_token');
-    this.tokenSignal.set(null);
-    this.userSignal.set(null);
-    this.router.navigate(['/login']);
+    this.http.post('/api/auth/logout', {}).subscribe({
+      next: () => {
+        this.userSignal.set(null);
+        this.router.navigate(['/login']);
+      },
+      error: () => {
+        this.userSignal.set(null);
+        this.router.navigate(['/login']);
+      }
+    });
   }
 }
