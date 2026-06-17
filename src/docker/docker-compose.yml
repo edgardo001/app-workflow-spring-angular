@@ -1,114 +1,233 @@
-version: "3.8"
+# =============================================================================
+# WorkflowNet — Docker Compose (Producción)
+# =============================================================================
+# Uso: docker compose -f src/docker/docker-compose.yml --env-file .env up -d
+# =============================================================================
 
 services:
+  # --- Traefik (Reverse Proxy + TLS) ---
+  traefik:
+    image: traefik:v3.7.1
+    container_name: workflow-traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - traefik-net
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./data/acme.json:/etc/traefik/acme/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DOMAIN:-traefik.localhost}`)"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_PASS_HASH:?Variable TRAEFIK_PASS_HASH no definida}"
+
+  # --- MongoDB 8 ---
   mongodb:
     image: mongo:8
     container_name: workflow-mongodb
     restart: unless-stopped
+    networks:
+      - mvp-network
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?Debe definir MONGO_ROOT_USER en .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Debe definir MONGO_ROOT_PASSWORD en .env}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-workflow-net}
     volumes:
       - mongo-data:/data/db
       - ./mongo/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh --quiet
       interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
-  kafka-zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    container_name: workflow-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    volumes:
-      - zookeeper-data:/var/lib/zookeeper/data
-
+  # --- Kafka (KRaft mode - sin Zookeeper) ---
   kafka:
-    image: confluentinc/cp-kafka:4.3.0
+    image: apache/kafka:latest
     container_name: workflow-kafka
-    depends_on:
-      - kafka-zookeeper
+    restart: unless-stopped
+    networks:
+      - mvp-network
     ports:
       - "9092:9092"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: kafka-zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9092
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
+  # --- Backend (Spring Boot) ---
   backend:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: src/backend/Dockerfile
     container_name: workflow-backend
     restart: unless-stopped
     depends_on:
-      - mongodb
-      - kafka
-    ports:
-      - "8080:8080"
-    env_file: ../../.env
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - mvp-network
+      - traefik-net
+    environment:
+      SERVER_PORT: 8080
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGO_DATABASE:-workflow-net}?authSource=admin
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MAIL_HOST: ${MAIL_HOST:?Debe definir MAIL_HOST en .env}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:?Debe definir MAIL_USERNAME en .env}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?Debe definir MAIL_PASSWORD en .env}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Debe definir GITHUB_CLIENT_ID en .env}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Debe definir GITHUB_CLIENT_SECRET en .env}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?Debe definir GITHUB_REDIRECT_URI en .env}
+      JWT_SECRET: ${JWT_SECRET:?Debe definir JWT_SECRET en .env}
+      FLOW_GRACE_PERIOD_DAYS: ${FLOW_GRACE_PERIOD_DAYS:-3}
+      DOCUMENT_MAX_SIZE: ${DOCUMENT_MAX_SIZE:-2097152}
+      DOCUMENT_MAX_COUNT: ${DOCUMENT_MAX_COUNT:-5}
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-WARN}
+      LOG_LEVEL_SPRING: ${LOG_LEVEL_SPRING:-WARN}
+      LOG_LEVEL_SECURITY: ${LOG_LEVEL_SECURITY:-WARN}
+      LOG_LEVEL_KAFKA: ${LOG_LEVEL_KAFKA:-WARN}
     volumes:
       - temp-docs:/app/temp-documents
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-net"
+      - "traefik.http.routers.backend.rule=Host(`${BACKEND_DOMAIN:-api.localhost}`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
+  # --- Frontend (Angular + Nginx) ---
   frontend:
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: src/frontend/Dockerfile
     container_name: workflow-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    networks:
+      - mvp-network
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-net"
+      - "traefik.http.routers.frontend.rule=Host(`${FRONTEND_DOMAIN:-app.localhost}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
-  traefik:
-    image: traefik:v3.0
-    container_name: workflow-traefik
-    command:
-      - "--providers.docker"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./traefik/traefik.yml:/traefik.yml
-      - ./traefik/dynamic.yml:/dynamic.yml
-
+  # --- Prometheus ---
   prometheus:
     image: prom/prometheus:latest
     container_name: workflow-prometheus
+    restart: unless-stopped
+    networks:
+      - mvp-network
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
+  # --- Grafana ---
   grafana:
     image: grafana/grafana:latest
     container_name: workflow-grafana
+    restart: unless-stopped
+    networks:
+      - mvp-network
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Debe definir GRAFANA_ADMIN_USER en .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Debe definir GRAFANA_ADMIN_PASSWORD en .env}
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   mongo-data:
   kafka-data:
-  zookeeper-data:
   grafana-data:
+  prometheus-data:
   temp-docs:
+
+networks:
+  mvp-network:
+    driver: bridge
+  traefik-net:
+    name: traefik-net
+    driver: bridge

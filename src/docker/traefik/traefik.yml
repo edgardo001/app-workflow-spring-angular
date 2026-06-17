@@ -1,5 +1,39 @@
-http:
-  routers:
-    traefik:
-      rule: Host(`traefik.localhost`)
-      service: api@internal
+# Traefik Configuration — WorkflowNet
+# Docs: https://doc.traefik.io/traefik/
+
+api:
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: traefik-net
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${ACME_EMAIL:?Debe definir ACME_EMAIL en .env}
+      storage: /etc/traefik/acme/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        delayBeforeCheck: 10s
+
+log:
+  level: INFO
+
+accessLog: {}
