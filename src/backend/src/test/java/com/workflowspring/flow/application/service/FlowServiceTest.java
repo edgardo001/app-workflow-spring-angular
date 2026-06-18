@@ -5,8 +5,10 @@ import com.workflowspring.flow.application.dto.FlowResponse;
 import com.workflowspring.flow.application.mapper.FlowMapper;
 import com.workflowspring.flow.domain.model.Flow;
 import com.workflowspring.flow.domain.model.FlowStatus;
-import com.workflowspring.flow.domain.service.FlowOrchestratorService;
 import com.workflowspring.flow.infrastructure.persistence.FlowRepository;
+import com.workflowspring.document.DocumentService;
+import com.workflowspring.document.infrastructure.TempDocumentRepository;
+import com.workflowspring.flow.domain.service.FlowOrchestratorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +28,10 @@ class FlowServiceTest {
 
     @Mock
     private FlowRepository flowRepository;
-
+    @Mock
+    private TempDocumentRepository tempDocumentRepository;
+    @Mock
+    private DocumentService documentService;
     @Mock
     private FlowOrchestratorService flowOrchestratorService;
 
@@ -36,7 +41,7 @@ class FlowServiceTest {
     @BeforeEach
     void setUp() {
         flowMapper = new FlowMapper();
-        flowService = new FlowService(flowRepository, flowMapper, flowOrchestratorService);
+        flowService = new FlowService(flowRepository, flowMapper, tempDocumentRepository, documentService, flowOrchestratorService);
     }
 
     @Test
@@ -54,7 +59,6 @@ class FlowServiceTest {
         assertNotNull(response);
         assertEquals("Test Flow", response.getTitle());
         verify(flowRepository).save(any(Flow.class));
-        verify(flowOrchestratorService).startFlow(any(Flow.class));
     }
 
     @Test

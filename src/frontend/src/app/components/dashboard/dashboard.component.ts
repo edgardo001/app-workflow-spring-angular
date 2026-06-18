@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { FlowService } from '../../services/flow.service';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -133,11 +133,20 @@ import { toSignal } from '@angular/core/rxjs-interop';
 })
 export class DashboardComponent {
   private flowService = inject(FlowService);
+  private router = inject(Router);
   flows = toSignal(this.flowService.loadFlows(), { initialValue: [] });
 
   searchQuery = signal('');
   currentPage = signal(1);
   pageSize = 10;
+
+  constructor() {
+    const redirectUrl = localStorage.getItem('redirect_after_login');
+    if (redirectUrl) {
+      localStorage.removeItem('redirect_after_login');
+      this.router.navigateByUrl(redirectUrl);
+    }
+  }
 
   filteredFlows = computed(() => {
     const q = this.searchQuery().toLowerCase();

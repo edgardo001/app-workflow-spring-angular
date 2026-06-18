@@ -6,7 +6,6 @@ import com.workflowspring.document.DocumentService;
 import com.workflowspring.document.infrastructure.TempDocumentRepository;
 import com.workflowspring.flow.domain.event.IdempotencyKey;
 import com.workflowspring.flow.domain.model.*;
-import com.workflowspring.flow.infrastructure.email.EmailSenderService;
 import com.workflowspring.flow.infrastructure.messaging.FlowEventPublisher;
 import com.workflowspring.flow.infrastructure.persistence.FlowRepository;
 import com.workflowspring.flow.infrastructure.persistence.IdempotencyRepository;
@@ -25,11 +24,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,18 +38,20 @@ class FlowOrchestratorServiceTest {
     @Mock private AuditService auditService;
     @Mock private DocumentService documentService;
     @Mock private TempDocumentRepository tempDocumentRepository;
-    @Mock private EmailSenderService emailSenderService;
     @Mock private JwtTokenService jwtTokenService;
+    @Mock private org.thymeleaf.TemplateEngine templateEngine;
 
     private FlowOrchestratorService orchestrator;
 
     @BeforeEach
     void setUp() {
+        lenient().when(templateEngine.process(anyString(), any(org.thymeleaf.context.Context.class)))
+                .thenReturn("mock-html-body");
+
         orchestrator = new FlowOrchestratorService(
                 flowRepository, eventPublisher, idempotencyRepository,
                 auditService, documentService, tempDocumentRepository,
-                emailSenderService, jwtTokenService);
-        lenient().when(jwtTokenService.generateApprovalToken(anyString(), anyString())).thenReturn("mock-token");
+                jwtTokenService, templateEngine, "http://localhost:4200");
     }
 
     private Flow createActiveFlowWithOneParticipant() throws IOException {
@@ -82,17 +78,16 @@ class FlowOrchestratorServiceTest {
     }
 
     @Test
-    void shouldStartFlowAndSendEmail() throws IOException {
+    void shouldStartFlowAndPublishEvents() throws IOException {
         Flow flow = createActiveFlowWithOneParticipant();
         when(flowRepository.save(any(Flow.class))).thenReturn(flow);
+        when(jwtTokenService.generateApprovalToken(any(), any())).thenReturn("mock-token");
 
         orchestrator.startFlow(flow);
 
         verify(eventPublisher).publishFlowCreated(any());
         verify(eventPublisher).publishFlowStarted(any());
-        verify(emailSenderService).sendApprovalEmail(
-                eq("alice@test.com"), eq("Test"), eq("mock-token"),
-                eq(flow.getId()), eq(0), eq(1), eq("Desc"), anyList());
+        verify(eventPublisher).publishEmailSend(any());
         verify(auditService).logEvent(eq(flow.getId()), anyString());
     }
 
@@ -102,15 +97,13 @@ class FlowOrchestratorServiceTest {
         when(flowRepository.findById("flow1")).thenReturn(Optional.of(flow));
         when(flowRepository.save(any(Flow.class))).thenReturn(flow);
         when(idempotencyRepository.existsByKey("approval-flow1-0")).thenReturn(false);
+        when(jwtTokenService.generateApprovalToken(any(), any())).thenReturn("mock-token");
 
         Flow result = orchestrator.processApproval("flow1", 0, "alice@test.com", "user1");
 
         assertEquals(FlowStatus.PENDING_APPROVAL, result.getStatus());
         assertEquals(1, result.getCurrentStep());
         verify(eventPublisher).publishDocumentApproved(any());
-        verify(emailSenderService).sendApprovalEmail(
-                eq("bob@test.com"), eq("Test"), eq("mock-token"),
-                eq("flow1"), eq(1), eq(2), eq("Desc"), anyList());
     }
 
     @Test
@@ -124,7 +117,6 @@ class FlowOrchestratorServiceTest {
 
         assertEquals(FlowStatus.COMPLETED, result.getStatus());
         verify(eventPublisher).publishFlowCompleted(any());
-        verify(emailSenderService).sendCompletionEmail(anyList(), eq("Test"), anyList(), anyList());
     }
 
     @Test
@@ -151,7 +143,6 @@ class FlowOrchestratorServiceTest {
         assertEquals(FlowStatus.REJECTED, result.getStatus());
         verify(eventPublisher).publishDocumentRejected(any());
         verify(tempDocumentRepository).deleteByFlowId("flow1");
-        verify(emailSenderService).sendRejectionNotification(anyList(), eq("Test"), eq("Not needed"));
     }
 
     @Test
@@ -165,19 +156,18 @@ class FlowOrchestratorServiceTest {
         assertEquals(FlowStatus.EXPIRED, result.getStatus());
         verify(eventPublisher).publishFlowExpired(any());
         verify(tempDocumentRepository).deleteByFlowId("flow1");
-        verify(emailSenderService).sendExpirationNotification(anyList(), eq("Test"));
     }
 
     @Test
     void shouldRepairFlowByResendingEmail() throws IOException {
         Flow flow = createActiveFlowWithOneParticipant();
         when(flowRepository.findById("flow1")).thenReturn(Optional.of(flow));
+        when(jwtTokenService.generateApprovalToken(any(), any())).thenReturn("mock-token");
+        when(flowRepository.save(any(Flow.class))).thenReturn(flow);
 
         orchestrator.repairFlow("flow1");
 
-        verify(emailSenderService).sendApprovalEmail(
-                eq("alice@test.com"), contains("Recordatorio"), eq("mock-token"),
-                eq("flow1"), eq(0), eq(1), eq("Desc"), anyList());
+        verify(eventPublisher).publishEmailSend(any());
         verify(auditService).logEvent(eq("flow1"), contains("REPAIR_EMAIL_RESENT"));
     }
 }

@@ -38,7 +38,7 @@ public class DocumentService {
         String originalFilename = file.getOriginalFilename();
         String storagePath = Paths.get(tempStorage, id + "-" + originalFilename).toString();
 
-        File dest = new File(storagePath);
+        File dest = new File(storagePath).getAbsoluteFile();
         dest.getParentFile().mkdirs();
         try {
             file.transferTo(dest);

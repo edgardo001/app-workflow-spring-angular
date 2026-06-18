@@ -16,8 +16,8 @@ export const routes: Routes = [
     loadComponent: () => import('./components/landing/landing.component').then(m => m.LandingComponent)
   },
   {
-    path: 'auth/callback',
-    loadComponent: () => import('./components/auth-callback/auth-callback.component').then(m => m.AuthCallbackComponent)
+    path: 'approve',
+    loadComponent: () => import('./components/approve-flow/approve-flow.component').then(m => m.ApproveFlowComponent)
   },
   {
     path: '',

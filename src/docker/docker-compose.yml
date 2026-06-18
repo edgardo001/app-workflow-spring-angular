@@ -224,15 +224,10 @@ services:
 
 volumes:
   mongo-data:
-    name: workflow-mongo-data
   kafka-data:
-    name: workflow-kafka-data
   grafana-data:
-    name: workflow-grafana-data
   prometheus-data:
-    name: workflow-prometheus-data
   temp-docs:
-    name: workflow-temp-docs
 
 networks:
   mvp-network:

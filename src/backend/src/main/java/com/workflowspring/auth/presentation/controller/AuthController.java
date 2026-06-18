@@ -45,9 +45,16 @@ public class AuthController {
     public ResponseEntity<Void> githubCallbackGet(@org.springframework.web.bind.annotation.RequestParam("code") String code, jakarta.servlet.http.HttpServletResponse httpServletResponse) {
         AuthResponse response = authService.processOAuthLogin(code);
 
-        return ResponseEntity.status(302)
-                .header("Location", frontendUrl.trim() + "/auth/callback?token=" + response.token())
+        org.springframework.http.ResponseCookie cookie = org.springframework.http.ResponseCookie.from("auth_token", response.token())
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(86400)
+                .sameSite("Lax")
                 .build();
+        httpServletResponse.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, cookie.toString());
+
+        return ResponseEntity.status(302).header("Location", frontendUrl.trim() + "/dashboard").build();
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -73,12 +80,38 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(jakarta.servlet.http.HttpServletResponse httpServletResponse) {
-        jakarta.servlet.http.Cookie cookie = new jakarta.servlet.http.Cookie("auth_token", "");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-        httpServletResponse.addCookie(cookie);
+        // Clear host-only cookie
+        org.springframework.http.ResponseCookie cookie = org.springframework.http.ResponseCookie.from("auth_token", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+        httpServletResponse.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, cookie.toString());
+
+        // Clear localhost domain cookie
+        org.springframework.http.ResponseCookie cookieLocal = org.springframework.http.ResponseCookie.from("auth_token", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .domain("localhost")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+        httpServletResponse.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, cookieLocal.toString());
+
+        // Clear 127.0.0.1 domain cookie
+        org.springframework.http.ResponseCookie cookieIp = org.springframework.http.ResponseCookie.from("auth_token", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .domain("127.0.0.1")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+        httpServletResponse.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, cookieIp.toString());
+
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 }

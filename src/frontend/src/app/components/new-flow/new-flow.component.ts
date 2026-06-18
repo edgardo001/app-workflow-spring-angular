@@ -1,8 +1,10 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { FlowService, CreateFlowRequest } from '../../services/flow.service';
+import { FlowService } from '../../services/flow.service';
 import { DocumentService } from '../../services/document.service';
+import { forkJoin, of } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-new-flow',
@@ -150,14 +152,28 @@ export class NewFlowComponent {
       return;
     }
 
-    this.flowService.createFlow({
-      title: this.title(),
-      description: this.description(),
-      deadline: this.deadline() ? this.deadline() + 'T00:00:00Z' : '',
-      destinatarios: validEmails,
-      documentIds: []
-    }).subscribe(() => {
-      this.router.navigate(['/dashboard']);
+    const uploads$ = this.files().length > 0 
+      ? forkJoin(this.files().map(f => this.documentService.upload(f)))
+      : of([]);
+
+    uploads$.pipe(
+      switchMap(uploadedDocs => {
+        const documentIds = uploadedDocs.map(d => d.id);
+        return this.flowService.createFlow({
+          title: this.title(),
+          description: this.description(),
+          deadline: this.deadline() ? this.deadline() + 'T00:00:00Z' : '',
+          participantEmails: validEmails,
+          documentIds: documentIds
+        });
+      })
+    ).subscribe({
+      next: () => {
+        this.router.navigate(['/dashboard']);
+      },
+      error: (err) => {
+        this.showError('Error al crear el flujo: ' + (err.error?.message || err.message));
+      }
     });
   }
 

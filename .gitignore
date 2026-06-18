@@ -24,3 +24,6 @@ Thumbs.db
 
 # Angular
 src/frontend/.angular/
+
+# Temporary documents
+src/backend/temp-documents

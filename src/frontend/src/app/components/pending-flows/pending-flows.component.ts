@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FlowService } from '../../services/flow.service';
@@ -48,11 +48,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
         </div>
 
         <div class="pending-body">
-          <p class="text-sm fw-medium mb-lg">Paso {{ f.step }} de {{ f.totalSteps }} — Tu firma es requerida</p>
+          <p class="text-sm fw-medium mb-lg">Paso {{ f.step + 1 }} de {{ f.totalSteps }} — Tu firma es requerida</p>
 
           <div class="stepper">
             <div class="stepper-track">
-              <div class="stepper-fill" [class.stepper-fill-33]="f.step === 2" [style.width.%]="((f.step - 1) / (f.totalSteps - 1)) * 100"></div>
+              <div class="stepper-fill" [style.width.%]="f.totalSteps > 1 ? (f.step / (f.totalSteps - 1)) * 100 : 100"></div>
             </div>
             @for (p of f.participants; track p.email) {
               <div class="step-dot">
@@ -62,10 +62,10 @@ import { toSignal } from '@angular/core/rxjs-interop';
                   </div>
                   <span class="dot-label done-label">{{ p.name }}</span>
                 } @else if (p.stepOrder === f.step) {
-                  <div class="dot current">{{ p.stepOrder }}</div>
+                  <div class="dot current">{{ p.stepOrder + 1 }}</div>
                   <span class="dot-label current-label">{{ p.name }}</span>
                 } @else {
-                  <div class="dot">{{ p.stepOrder }}</div>
+                  <div class="dot">{{ p.stepOrder + 1 }}</div>
                   <span class="dot-label">{{ p.name }}</span>
                 }
               </div>
@@ -102,10 +102,10 @@ export class PendingFlowsComponent {
   private flowService = inject(FlowService);
   private router = inject(Router);
 
-  flows = toSignal(this.flowService.loadPendingFlows(), { initialValue: [] })();
+  flows = toSignal(this.flowService.loadPendingFlows(), { initialValue: [] });
   termsAccepted = signal(false);
 
-  flow = signal(this.flows[0] || null);
+  flow = computed(() => this.flows()[0] || null);
 
   previewDoc(doc: any): void {
     const container = document.querySelector('.toast-container');

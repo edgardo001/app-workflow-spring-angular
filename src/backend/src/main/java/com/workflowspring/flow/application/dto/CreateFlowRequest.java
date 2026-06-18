@@ -9,5 +9,6 @@ public class CreateFlowRequest {
     private String title;
     private String description;
     private Instant deadline;
-    private List<String> destinatarios;
+    private List<String> participantEmails;
+    private List<String> documentIds;
 }

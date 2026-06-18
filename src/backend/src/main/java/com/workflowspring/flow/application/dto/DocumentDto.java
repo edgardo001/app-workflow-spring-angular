@@ -6,6 +6,8 @@ import lombok.Data;
 public class DocumentDto {
     private String id;
     private String filename;
+    private String name;
     private String contentType;
-    private long size;
+    private String type;
+    private String size;
 }

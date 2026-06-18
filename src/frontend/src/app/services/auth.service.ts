@@ -49,12 +49,10 @@ export class AuthService {
     this.http.post('/api/auth/logout', {}).subscribe({
       next: () => {
         this.userSignal.set(null);
-        localStorage.removeItem('auth_token');
         this.router.navigate(['/login']);
       },
       error: () => {
         this.userSignal.set(null);
-        localStorage.removeItem('auth_token');
         this.router.navigate(['/login']);
       }
     });

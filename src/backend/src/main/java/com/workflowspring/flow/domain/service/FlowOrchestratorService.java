@@ -1,7 +1,6 @@
 package com.workflowspring.flow.domain.service;
 
 import com.workflowspring.audit.AuditService;
-import com.workflowspring.auth.JwtTokenService;
 import com.workflowspring.document.DocumentService;
 import com.workflowspring.document.infrastructure.TempDocumentRepository;
 import com.workflowspring.flow.domain.event.DocumentApprovedEvent;
@@ -15,12 +14,17 @@ import com.workflowspring.flow.domain.model.DocumentMetadata;
 import com.workflowspring.flow.domain.model.Flow;
 import com.workflowspring.flow.domain.model.FlowStatus;
 import com.workflowspring.flow.domain.model.Participant;
-import com.workflowspring.flow.infrastructure.email.EmailSenderService;
 import com.workflowspring.flow.infrastructure.messaging.FlowEventPublisher;
 import com.workflowspring.flow.infrastructure.persistence.FlowRepository;
 import com.workflowspring.flow.infrastructure.persistence.IdempotencyRepository;
+import com.workflowspring.shared.event.EmailSendEvent;
+import com.workflowspring.auth.JwtTokenService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,8 +43,9 @@ public class FlowOrchestratorService {
     private final AuditService auditService;
     private final DocumentService documentService;
     private final TempDocumentRepository tempDocumentRepository;
-    private final EmailSenderService emailSenderService;
     private final JwtTokenService jwtTokenService;
+    private final TemplateEngine templateEngine;
+    private final String frontendUrl;
 
     public FlowOrchestratorService(FlowRepository flowRepository,
                                    FlowEventPublisher eventPublisher,
@@ -48,46 +53,61 @@ public class FlowOrchestratorService {
                                    AuditService auditService,
                                    DocumentService documentService,
                                    TempDocumentRepository tempDocumentRepository,
-                                   EmailSenderService emailSenderService,
-                                   JwtTokenService jwtTokenService) {
+                                   JwtTokenService jwtTokenService,
+                                   TemplateEngine templateEngine,
+                                   @Value("${app.frontend-url}") String frontendUrl) {
         this.flowRepository = flowRepository;
         this.eventPublisher = eventPublisher;
         this.idempotencyRepository = idempotencyRepository;
         this.auditService = auditService;
         this.documentService = documentService;
         this.tempDocumentRepository = tempDocumentRepository;
-        this.emailSenderService = emailSenderService;
         this.jwtTokenService = jwtTokenService;
+        this.templateEngine = templateEngine;
+        this.frontendUrl = frontendUrl;
     }
 
     public void startFlow(Flow flow) {
-        if (flow.getParticipants().isEmpty()) {
-            throw new IllegalStateException("Cannot start a flow without participants");
-        }
-
         flow.setStatus(FlowStatus.ACTIVE);
         flow.setCurrentStep(0);
-        flowRepository.save(flow);
-
-        eventPublisher.publishFlowCreated(new FlowCreatedEvent(flow.getId(), flow.getTitle(), flow.getCreatedBy()));
 
         Participant first = flow.getParticipants().get(0);
-        eventPublisher.publishFlowStarted(new FlowStartedEvent(flow.getId(), 0, first.getEmail()));
-
         String token = jwtTokenService.generateApprovalToken(flow.getId(), first.getEmail());
+        first.setToken(token);
+
+        flowRepository.save(flow);
+
+        FlowCreatedEvent createdEvent = new FlowCreatedEvent(flow.getId(), flow.getTitle(), flow.getCreatedBy());
+        eventPublisher.publishFlowCreated(createdEvent);
+
+        FlowStartedEvent startedEvent = new FlowStartedEvent(flow.getId(), 0, first.getEmail());
+        eventPublisher.publishFlowStarted(startedEvent);
+
+        List<String> docPaths = flow.getDocuments().stream()
+                .map(DocumentMetadata::getTempPath)
+                .collect(Collectors.toList());
+
         List<String> docNames = flow.getDocuments().stream()
                 .map(DocumentMetadata::getFileName)
                 .collect(Collectors.toList());
 
-        emailSenderService.sendApprovalEmail(
-                first.getEmail(),
-                flow.getTitle(),
-                token,
+        String approvalLink = frontendUrl + "/approve?token=" + token;
+        Context context = new Context();
+        context.setVariable("flowTitle", flow.getTitle());
+        context.setVariable("stepInfo", "1 de " + flow.getParticipants().size());
+        context.setVariable("description", flow.getDescription() != null ? flow.getDescription() : "");
+        context.setVariable("documentNames", docNames);
+        context.setVariable("approvalLink", approvalLink);
+        String htmlBody = templateEngine.process("email/approval", context);
+
+        EmailSendEvent emailEvent = new EmailSendEvent(
                 flow.getId(),
-                0,
-                flow.getParticipants().size(),
-                flow.getDescription(),
-                docNames);
+                first.getEmail(),
+                "Approval Required: " + flow.getTitle(),
+                htmlBody,
+                docPaths,
+                0);
+        eventPublisher.publishEmailSend(emailEvent);
 
         auditService.logEvent(flow.getId(), "FLOW_STARTED by " + flow.getCreatedBy());
     }
@@ -123,30 +143,53 @@ public class FlowOrchestratorService {
             List<String> participantEmails = flow.getParticipants().stream()
                     .map(Participant::getEmail)
                     .collect(Collectors.toList());
-            emailSenderService.sendCompletionEmail(participantEmails, flow.getTitle(), List.of(), List.of());
+
+            Context context = new Context();
+            context.setVariable("flowTitle", flow.getTitle());
+            String htmlBody = templateEngine.process("email/completion", context);
+
+            EmailSendEvent emailEvent = new EmailSendEvent(
+                    flowId, String.join(",", participantEmails),
+                    "Flow Completed: " + flow.getTitle(),
+                    htmlBody,
+                    List.of(), stepNumber);
+            eventPublisher.publishEmailSend(emailEvent);
 
             auditService.logEvent(flowId, "FLOW_COMPLETED last step " + stepNumber);
         } else {
+            int nextStep = flow.getCurrentStep();
+            Participant next = flow.getParticipants().get(nextStep);
+            String token = jwtTokenService.generateApprovalToken(flowId, next.getEmail());
+            next.setToken(token);
+
             flowRepository.save(flow);
             eventPublisher.publishDocumentApproved(new DocumentApprovedEvent(flowId, stepNumber, participantEmail, userId));
 
-            int nextStep = flow.getCurrentStep();
-            Participant next = flow.getParticipants().get(nextStep);
+            List<String> docPaths = flow.getDocuments().stream()
+                    .map(DocumentMetadata::getTempPath)
+                    .collect(Collectors.toList());
 
-            String token = jwtTokenService.generateApprovalToken(flowId, next.getEmail());
             List<String> docNames = flow.getDocuments().stream()
                     .map(DocumentMetadata::getFileName)
                     .collect(Collectors.toList());
 
-            emailSenderService.sendApprovalEmail(
-                    next.getEmail(),
-                    flow.getTitle(),
-                    token,
+            String approvalLink = frontendUrl + "/approve?token=" + token;
+            Context context = new Context();
+            context.setVariable("flowTitle", flow.getTitle());
+            context.setVariable("stepInfo", (nextStep + 1) + " de " + flow.getParticipants().size());
+            context.setVariable("description", flow.getDescription() != null ? flow.getDescription() : "");
+            context.setVariable("documentNames", docNames);
+            context.setVariable("approvalLink", approvalLink);
+            String htmlBody = templateEngine.process("email/approval", context);
+
+            EmailSendEvent emailEvent = new EmailSendEvent(
                     flowId,
-                    nextStep,
-                    flow.getParticipants().size(),
-                    flow.getDescription(),
-                    docNames);
+                    next.getEmail(),
+                    "Approval Required: " + flow.getTitle(),
+                    htmlBody,
+                    docPaths,
+                    nextStep);
+            eventPublisher.publishEmailSend(emailEvent);
 
             auditService.logEvent(flowId, "STEP_" + stepNumber + "_APPROVED by " + participantEmail);
         }
@@ -173,7 +216,20 @@ public class FlowOrchestratorService {
         List<String> participantEmails = flow.getParticipants().stream()
                 .map(Participant::getEmail)
                 .collect(Collectors.toList());
-        emailSenderService.sendRejectionNotification(participantEmails, flow.getTitle(), reason);
+
+        Context context = new Context();
+        context.setVariable("flowTitle", flow.getTitle());
+        context.setVariable("reason", reason);
+        String htmlBody = templateEngine.process("email/rejection", context);
+
+        EmailSendEvent emailEvent = new EmailSendEvent(
+                flowId,
+                String.join(",", participantEmails),
+                "Flow Rejected: " + flow.getTitle(),
+                htmlBody,
+                List.of(),
+                stepNumber);
+        eventPublisher.publishEmailSend(emailEvent);
 
         auditService.logEvent(flowId, "FLOW_REJECTED at step " + stepNumber + " by " + participantEmail);
         return flow;
@@ -191,7 +247,19 @@ public class FlowOrchestratorService {
         List<String> participantEmails = flow.getParticipants().stream()
                 .map(Participant::getEmail)
                 .collect(Collectors.toList());
-        emailSenderService.sendExpirationNotification(participantEmails, flow.getTitle());
+
+        Context context = new Context();
+        context.setVariable("flowTitle", flow.getTitle());
+        String htmlBody = templateEngine.process("email/expiration", context);
+
+        EmailSendEvent emailEvent = new EmailSendEvent(
+                flowId,
+                String.join(",", participantEmails),
+                "Flow Expired: " + flow.getTitle(),
+                htmlBody,
+                List.of(),
+                flow.getCurrentStep());
+        eventPublisher.publishEmailSend(emailEvent);
 
         auditService.logEvent(flowId, "FLOW_EXPIRED");
         return flow;
@@ -204,21 +272,38 @@ public class FlowOrchestratorService {
         if (status == FlowStatus.ACTIVE || status == FlowStatus.PENDING_APPROVAL) {
             int step = flow.getCurrentStep();
             Participant current = flow.getParticipants().get(step);
+            String token = current.getToken();
+            if (token == null || token.isEmpty()) {
+                token = jwtTokenService.generateApprovalToken(flowId, current.getEmail());
+                current.setToken(token);
+                flowRepository.save(flow);
+            }
 
-            String token = jwtTokenService.generateApprovalToken(flowId, current.getEmail());
+            List<String> docPaths = flow.getDocuments().stream()
+                    .map(DocumentMetadata::getTempPath)
+                    .collect(Collectors.toList());
+
             List<String> docNames = flow.getDocuments().stream()
                     .map(DocumentMetadata::getFileName)
                     .collect(Collectors.toList());
 
-            emailSenderService.sendApprovalEmail(
-                    current.getEmail(),
-                    "Recordatorio: " + flow.getTitle(),
-                    token,
+            String approvalLink = frontendUrl + "/approve?token=" + token;
+            Context context = new Context();
+            context.setVariable("flowTitle", flow.getTitle());
+            context.setVariable("stepInfo", (step + 1) + " de " + flow.getParticipants().size());
+            context.setVariable("description", flow.getDescription() != null ? flow.getDescription() : "");
+            context.setVariable("documentNames", docNames);
+            context.setVariable("approvalLink", approvalLink);
+            String htmlBody = templateEngine.process("email/approval", context);
+
+            EmailSendEvent emailEvent = new EmailSendEvent(
                     flowId,
-                    step,
-                    flow.getParticipants().size(),
-                    flow.getDescription(),
-                    docNames);
+                    current.getEmail(),
+                    "Reminder: Approval Required - " + flow.getTitle(),
+                    htmlBody,
+                    docPaths,
+                    step);
+            eventPublisher.publishEmailSend(emailEvent);
 
             auditService.logEvent(flowId, "REPAIR_EMAIL_RESENT for step " + step);
         } else {

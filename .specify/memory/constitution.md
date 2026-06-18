@@ -19,10 +19,10 @@ Business flows use the SAGA orchestration pattern via Kafka. A single `FlowOrche
 Tests are written BEFORE implementation code. The cycle is: Red (test fails) → Green (minimal implementation) → Refactor. Every vertical slice must have unit tests for domain logic, integration tests for persistence, and contract tests for API endpoints. Tests are the specification of correctness.
 
 ### IV. Security-First
-ALL user inputs MUST be validated server-side. Authentication uses GitHub OAuth. Action tokens are JWS (JSON Web Signature) signed by the backend — never plain IDs. The audit log (`flow_audit_log`) is append-only: no UPDATE or DELETE allowed. Secrets live exclusively in `.env` (never committed). Admin credentials and OAuth secrets are configured via environment variables.
+ALL user inputs MUST be validated server-side. Authentication uses GitHub OAuth. Action tokens are JWS (JSON Web Signature) signed by the backend — never plain IDs. To prevent cross-user impersonation and unauthorized signing, action endpoints verify that the authenticated session email matches the email claim of the JWS token. The audit log (`flow_audit_log`) is append-only: no UPDATE or DELETE allowed. Secrets live exclusively in `.env` (never committed). Admin credentials and OAuth secrets are configured via environment variables.
 
 ### V. Observability & Traceability
-Every action generates an audit log entry in `flow_audit_log`. The system exposes health (`/actuator/health`) and metrics (`/actuator/prometheus`) endpoints. Failed email deliveries go to a Kafka DLQ. Flows past deadline + grace period are automatically expired via `@Scheduled` job. Grafana dashboards visualize KPI metrics from Prometheus.
+Every action generates an audit log entry in `flow_audit_log`. The system exposes health (`/actuator/health`) and metrics (`/actuator/prometheus`) endpoints. Failed email deliveries go to a Kafka DLQ. Failed/completed email bodies are processed using dynamic Thymeleaf templates before sending. Flows past deadline + grace period are automatically expired via `@Scheduled` job. Grafana dashboards visualize KPI metrics from Prometheus.
 
 ## Technology Stack
 
@@ -30,6 +30,7 @@ Every action generates an audit log entry in `flow_audit_log`. The system expose
 |---|---|---|
 | Backend | Spring Boot (Kotlin) | 3.4.2 |
 | JDK | OpenJDK | 17 |
+| Templating | Thymeleaf | — |
 | Frontend | Angular | 22 |
 | CSS | Tailwind CSS | — |
 | Database | MongoDB | 8 |

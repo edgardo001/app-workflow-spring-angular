@@ -46,11 +46,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <div class="progress-track"><div class="progress-fill" [style.width.%]="(flow.step / flow.totalSteps) * 100"></div></div>
             <span class="progress-label">{{ Math.round((flow.step / flow.totalSteps) * 100) }}%</span>
           </div>
-          @if (flow.status === 'DRAFT') {
-            <button (click)="$event.stopPropagation(); $event.preventDefault(); startFlow(flow.id)" class="action-btn view" aria-label="Iniciar flujo">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </button>
-          } @else if (flow.isMyTurn) {
+          @if (flow.isMyTurn) {
             <button (click)="$event.stopPropagation(); $event.preventDefault(); navigateToPending()" class="action-btn view" aria-label="Ir a pendientes">
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             </button>
@@ -70,14 +66,5 @@ export class FlowsComponent {
 
   navigateToPending(): void {
     this.router.navigate(['/pending']);
-  }
-
-  startFlow(id: string): void {
-    this.flowService.startFlow(id).subscribe({
-      next: () => {
-        this.flowService.loadFlows().subscribe();
-      },
-      error: (err) => console.error('Error starting flow', err)
-    });
   }
 }

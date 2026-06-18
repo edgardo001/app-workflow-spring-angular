@@ -28,6 +28,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-mail")
+    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // Kafka
@@ -45,9 +46,6 @@ dependencies {
 
     // OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
-
-    // Thymeleaf (email templates)
-    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
 
     // Metrics
     implementation("io.micrometer:micrometer-registry-prometheus")
