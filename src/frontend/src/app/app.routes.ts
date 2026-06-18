@@ -16,6 +16,10 @@ export const routes: Routes = [
     loadComponent: () => import('./components/landing/landing.component').then(m => m.LandingComponent)
   },
   {
+    path: 'approve',
+    loadComponent: () => import('./components/approve-flow/approve-flow.component').then(m => m.ApproveFlowComponent)
+  },
+  {
     path: '',
     loadComponent: () => import('./components/shell/shell.component').then(m => m.ShellComponent),
     canActivate: [authGuard],

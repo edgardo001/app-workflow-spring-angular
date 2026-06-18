@@ -3,134 +3,53 @@ package com.workflowspring.flow.infrastructure.email;
 import com.workflowspring.audit.AuditService;
 import com.workflowspring.shared.event.EmailSendEvent;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.util.ByteArrayDataSource;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.io.File;
 
 @Service
 public class EmailSenderService {
 
+    private static final Logger log = LoggerFactory.getLogger(EmailSenderService.class);
+
     private final JavaMailSender mailSender;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final AuditService auditService;
 
-    public EmailSenderService(JavaMailSender mailSender,
-                              KafkaTemplate<String, Object> kafkaTemplate,
-                              AuditService auditService) {
+    public EmailSenderService(JavaMailSender mailSender, AuditService auditService) {
         this.mailSender = mailSender;
-        this.kafkaTemplate = kafkaTemplate;
         this.auditService = auditService;
     }
 
-    public void sendApprovalEmail(String to, String flowTitle, String token,
-                                  String flowId, int stepNumber, List<byte[]> attachments) {
+    public void sendEmail(EmailSendEvent event) {
+        log.info("Sending email to={}, subject={}", event.getTo(), event.getSubject());
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            boolean isMultipart = event.getAttachmentPaths() != null && !event.getAttachmentPaths().isEmpty();
+            MimeMessageHelper helper = new MimeMessageHelper(message, isMultipart, "UTF-8");
 
-            helper.setTo(to);
-            helper.setSubject("Approval Required: " + flowTitle);
+            helper.setTo(event.getTo().split(","));
+            helper.setSubject(event.getSubject());
+            helper.setText(event.getBody(), true); // true indicates HTML content
 
-            String approvalLink = "https://workflownet.app/approve?token=" + token;
-            String htmlBody = """
-                    <html>
-                    <body>
-                    <h2>Approval Request</h2>
-                    <p>You have been requested to approve: <strong>%s</strong></p>
-                    <p>Step %d of the approval workflow requires your review.</p>
-                    <p><a href="%s">Click here to review and approve</a></p>
-                    </body>
-                    </html>
-                    """.formatted(flowTitle, stepNumber + 1, approvalLink);
-
-            helper.setText(htmlBody, true);
-
-            for (int i = 0; i < attachments.size(); i++) {
-                ByteArrayDataSource dataSource = new ByteArrayDataSource(attachments.get(i), "application/octet-stream");
-                helper.addAttachment("document-" + (i + 1), dataSource);
-            }
-
-            mailSender.send(message);
-            auditService.logEvent(flowId, "APPROVAL_EMAIL_SENT to " + to);
-            kafkaTemplate.send("email.send", flowId,
-                    new EmailSendEvent(flowId, to, "Approval Required: " + flowTitle, htmlBody, List.of(), stepNumber));
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to send approval email to " + to, e);
-        }
-    }
-
-    public void sendNotificationEmail(String to, String subject, String body) {
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(body);
-
-            mailSender.send(message);
-            auditService.logEvent(null, "NOTIFICATION_EMAIL_SENT to " + to);
-            kafkaTemplate.send("email.send", null,
-                    new EmailSendEvent(null, to, subject, body, List.of(), -1));
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to send notification email to " + to, e);
-        }
-    }
-
-    public void sendRejectionNotification(List<String> participants, String flowTitle, String reason) {
-        String subject = "Flow Rejected: " + flowTitle;
-        String body = "The flow \"" + flowTitle + "\" has been rejected.\nReason: " + reason;
-
-        for (String email : participants) {
-            try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-
-                helper.setTo(email);
-                helper.setSubject(subject);
-                helper.setText(body);
-
-                mailSender.send(message);
-                auditService.logEvent(null, "REJECTION_NOTIFICATION_SENT to " + email);
-                kafkaTemplate.send("email.send", null,
-                        new EmailSendEvent(null, email, subject, body, List.of(), -1));
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to send rejection notification to " + email, e);
-            }
-        }
-    }
-
-    public void sendCompletionEmail(List<String> participants, String flowTitle,
-                                    List<byte[]> attachments, List<String> filenames) {
-        String subject = "Flow Completed: " + flowTitle;
-        String text = "The flow \"" + flowTitle + "\" has been completed. The final documents are attached.";
-
-        for (String email : participants) {
-            try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-                helper.setTo(email);
-                helper.setSubject(subject);
-                helper.setText(text);
-
-                for (int i = 0; i < attachments.size(); i++) {
-                    String filename = (i < filenames.size()) ? filenames.get(i) : "document-" + (i + 1);
-                    ByteArrayDataSource dataSource = new ByteArrayDataSource(attachments.get(i), "application/octet-stream");
-                    helper.addAttachment(filename, dataSource);
+            if (isMultipart) {
+                for (String path : event.getAttachmentPaths()) {
+                    File file = new File(path);
+                    if (file.exists()) {
+                        helper.addAttachment(file.getName(), file);
+                    } else {
+                        log.warn("Attachment file not found at path: {}", path);
+                    }
                 }
-
-                mailSender.send(message);
-                auditService.logEvent(null, "COMPLETION_EMAIL_SENT to " + email);
-                kafkaTemplate.send("email.send", null,
-                        new EmailSendEvent(null, email, subject, text, List.of(), -1));
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to send completion email to " + email, e);
             }
+
+            mailSender.send(message);
+            auditService.logEvent(event.getFlowId(), "EMAIL_SENT to " + event.getTo());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to send email to " + event.getTo(), e);
         }
     }
 }

@@ -6,4 +6,5 @@ import lombok.Data;
 public class ActionRequest {
     private String reason;
     private String action;
+    private String token; // JWS token for approval/rejection
 }

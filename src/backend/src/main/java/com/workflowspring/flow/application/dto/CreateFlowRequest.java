@@ -10,4 +10,5 @@ public class CreateFlowRequest {
     private String description;
     private Instant deadline;
     private List<String> participantEmails;
+    private List<String> documentIds;
 }

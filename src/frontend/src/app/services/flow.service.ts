@@ -39,7 +39,7 @@ export interface CreateFlowRequest {
   title: string;
   description: string;
   deadline: string;
-  destinatarios: string[];
+  participantEmails: string[];
   documentIds: string[];
 }
 
@@ -69,18 +69,22 @@ export class FlowService {
     return this.http.get<Flow>(`/api/flows/${id}`);
   }
 
+  verifyToken(token: string): Observable<Flow> {
+    return this.http.get<Flow>(`/api/flows/verify`, { params: { token } });
+  }
+
   createFlow(data: CreateFlowRequest): Observable<Flow> {
     return this.http.post<Flow>('/api/flows', data).pipe(
       tap(flow => this.flowsSignal.update(flows => [flow, ...flows]))
     );
   }
 
-  approveFlow(id: string): Observable<Flow> {
-    return this.http.post<Flow>(`/api/flows/${id}/approve`, {});
+  approveFlow(id: string, token?: string): Observable<Flow> {
+    return this.http.post<Flow>(`/api/flows/${id}/approve`, { token });
   }
 
-  rejectFlow(id: string, reason: string): Observable<Flow> {
-    return this.http.post<Flow>(`/api/flows/${id}/reject`, { reason });
+  rejectFlow(id: string, reason: string, token?: string): Observable<Flow> {
+    return this.http.post<Flow>(`/api/flows/${id}/reject`, { reason, token });
   }
 
   requestChanges(id: string, reason: string): Observable<Flow> {

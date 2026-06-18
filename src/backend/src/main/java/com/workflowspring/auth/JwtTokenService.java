@@ -68,4 +68,15 @@ public class JwtTokenService {
         String role = claims.getPayload().get("role", String.class);
         return role != null ? List.of("ROLE_" + role) : List.of("ROLE_USER");
     }
+
+    // New helper methods to extract flowId and email from approval tokens
+    public String getFlowIdFromToken(String token) {
+        Jws<Claims> claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+        return claims.getPayload().getSubject(); // flowId stored as subject
+    }
+
+    public String getEmailFromToken(String token) {
+        Jws<Claims> claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+        return claims.getPayload().get("email", String.class);
+    }
 }
