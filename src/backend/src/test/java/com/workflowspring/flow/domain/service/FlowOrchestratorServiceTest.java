@@ -1,6 +1,7 @@
 package com.workflowspring.flow.domain.service;
 
 import com.workflowspring.audit.AuditService;
+import com.workflowspring.auth.JwtTokenService;
 import com.workflowspring.document.DocumentService;
 import com.workflowspring.document.infrastructure.TempDocumentRepository;
 import com.workflowspring.flow.domain.event.IdempotencyKey;
@@ -37,14 +38,20 @@ class FlowOrchestratorServiceTest {
     @Mock private AuditService auditService;
     @Mock private DocumentService documentService;
     @Mock private TempDocumentRepository tempDocumentRepository;
+    @Mock private JwtTokenService jwtTokenService;
+    @Mock private org.thymeleaf.TemplateEngine templateEngine;
 
     private FlowOrchestratorService orchestrator;
 
     @BeforeEach
     void setUp() {
+        lenient().when(templateEngine.process(anyString(), any(org.thymeleaf.context.Context.class)))
+                .thenReturn("mock-html-body");
+
         orchestrator = new FlowOrchestratorService(
                 flowRepository, eventPublisher, idempotencyRepository,
-                auditService, documentService, tempDocumentRepository);
+                auditService, documentService, tempDocumentRepository,
+                jwtTokenService, templateEngine, "http://localhost:4200");
     }
 
     private Flow createActiveFlowWithOneParticipant() throws IOException {
@@ -74,6 +81,7 @@ class FlowOrchestratorServiceTest {
     void shouldStartFlowAndPublishEvents() throws IOException {
         Flow flow = createActiveFlowWithOneParticipant();
         when(flowRepository.save(any(Flow.class))).thenReturn(flow);
+        when(jwtTokenService.generateApprovalToken(any(), any())).thenReturn("mock-token");
 
         orchestrator.startFlow(flow);
 
@@ -89,6 +97,7 @@ class FlowOrchestratorServiceTest {
         when(flowRepository.findById("flow1")).thenReturn(Optional.of(flow));
         when(flowRepository.save(any(Flow.class))).thenReturn(flow);
         when(idempotencyRepository.existsByKey("approval-flow1-0")).thenReturn(false);
+        when(jwtTokenService.generateApprovalToken(any(), any())).thenReturn("mock-token");
 
         Flow result = orchestrator.processApproval("flow1", 0, "alice@test.com", "user1");
 
@@ -153,6 +162,8 @@ class FlowOrchestratorServiceTest {
     void shouldRepairFlowByResendingEmail() throws IOException {
         Flow flow = createActiveFlowWithOneParticipant();
         when(flowRepository.findById("flow1")).thenReturn(Optional.of(flow));
+        when(jwtTokenService.generateApprovalToken(any(), any())).thenReturn("mock-token");
+        when(flowRepository.save(any(Flow.class))).thenReturn(flow);
 
         orchestrator.repairFlow("flow1");
 
