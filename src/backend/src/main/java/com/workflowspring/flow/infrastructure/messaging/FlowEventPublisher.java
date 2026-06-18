@@ -7,7 +7,6 @@ import com.workflowspring.flow.domain.event.FlowCreatedEvent;
 import com.workflowspring.flow.domain.event.FlowExpiredEvent;
 import com.workflowspring.flow.domain.event.FlowStartedEvent;
 import com.workflowspring.shared.event.EmailFailedEvent;
-import com.workflowspring.shared.event.EmailSendEvent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -40,10 +39,6 @@ public class FlowEventPublisher {
 
     public void publishFlowCompleted(FlowCompletedEvent event) {
         kafkaTemplate.send("flow.completed", event.getFlowId(), event);
-    }
-
-    public void publishEmailSend(EmailSendEvent event) {
-        kafkaTemplate.send("email.send", event.getFlowId(), event);
     }
 
     public void publishEmailFailed(EmailFailedEvent event) {

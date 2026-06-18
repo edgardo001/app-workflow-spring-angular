@@ -5,6 +5,7 @@ import com.workflowspring.flow.application.dto.FlowResponse;
 import com.workflowspring.flow.application.mapper.FlowMapper;
 import com.workflowspring.flow.domain.model.Flow;
 import com.workflowspring.flow.domain.model.FlowStatus;
+import com.workflowspring.flow.domain.service.FlowOrchestratorService;
 import com.workflowspring.flow.infrastructure.persistence.FlowRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,13 +27,16 @@ class FlowServiceTest {
     @Mock
     private FlowRepository flowRepository;
 
+    @Mock
+    private FlowOrchestratorService flowOrchestratorService;
+
     private FlowMapper flowMapper;
     private FlowService flowService;
 
     @BeforeEach
     void setUp() {
         flowMapper = new FlowMapper();
-        flowService = new FlowService(flowRepository, flowMapper);
+        flowService = new FlowService(flowRepository, flowMapper, flowOrchestratorService);
     }
 
     @Test
@@ -50,6 +54,7 @@ class FlowServiceTest {
         assertNotNull(response);
         assertEquals("Test Flow", response.getTitle());
         verify(flowRepository).save(any(Flow.class));
+        verify(flowOrchestratorService).startFlow(any(Flow.class));
     }
 
     @Test

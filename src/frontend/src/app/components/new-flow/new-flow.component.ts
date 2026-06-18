@@ -113,7 +113,7 @@ export class NewFlowComponent {
 
   title = signal('');
   description = signal('');
-  deadline = signal('');
+  deadline = signal(new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0]);
   files = signal<File[]>([]);
   destinatarios = signal<string[]>(['', '']);
 
@@ -153,7 +153,7 @@ export class NewFlowComponent {
     this.flowService.createFlow({
       title: this.title(),
       description: this.description(),
-      deadline: this.deadline(),
+      deadline: this.deadline() ? this.deadline() + 'T00:00:00Z' : '',
       destinatarios: validEmails,
       documentIds: []
     }).subscribe(() => {

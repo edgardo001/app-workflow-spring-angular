@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#991b1b,#dc2626);padding:24px 32px;">
+            <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">WorkflowSpring</h1>
+            <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">Flujo Rechazado</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <h2 style="margin:0 0 16px;color:#111827;font-size:18px;">El flujo ha sido rechazado</h2>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef2f2;border-radius:6px;padding:16px;margin-bottom:16px;">
+              <tr>
+                <td style="padding:4px 0;color:#6b7280;font-size:13px;font-weight:600;width:120px;">Flujo:</td>
+                <td style="padding:4px 0;color:#111827;font-size:14px;" th:text="${flowTitle}"></td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;color:#6b7280;font-size:13px;font-weight:600;">Razon:</td>
+                <td style="padding:4px 0;color:#991b1b;font-size:14px;" th:text="${reason}"></td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">
+              Este es un mensaje automatico del sistema WorkflowSpring. No responda a este correo.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

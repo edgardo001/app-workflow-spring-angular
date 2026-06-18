@@ -94,6 +94,11 @@ As an admin, I want to see a KPI dashboard showing flow statistics (total, by st
 - What happens when the email server is down during flow creation?
 - How does the system recover from a Kafka broker failure mid-flow?
 - What happens if a document upload is interrupted mid-transfer?
+- **BUG-001**: Flow creator does NOT see their own flows in the pending list because `getPendingFlows` only queries by `participantEmail`, not by `createdBy`. Fix: query by both.
+- **BUG-002**: Approval emails sent via Kafka are plain text with no approval link/token. `FlowEventConsumer.consumeEmailSend()` calls `sendNotificationEmail()` which has no token, no HTML, no instructions. Fix: orchestrator generates tokens and sends HTML emails directly.
+- **BUG-003**: `sendNotificationEmail` re-publishes an `EmailSendEvent` back to `email.send` topic after sending, creating a potential infinite Kafka loop (each new event has a unique UUID bypassing idempotency). Fix: remove re-publish from email service methods.
+- **BUG-004**: `FlowOrchestratorService.startFlow()` bypasses `Flow.start()` validation (documents, participants check). Fix: call `flow.start()` or add validation.
+- **BUG-005**: Email subjects and body are in English. Fix: translate to Spanish for the primary user base.
 
 ## Requirements
 
@@ -118,12 +123,18 @@ As an admin, I want to see a KPI dashboard showing flow statistics (total, by st
 - **FR-017**: System MUST log every action in append-only flow_audit_log
 - **FR-018**: System MUST provide a grid for admin with search, sort, filter, pagination (state in URL)
 - **FR-019**: System MUST provide a grid for recipients with their pending flows
+- **FR-019a**: System MUST show flows created by the user in the pending list (query by `createdBy` OR `participantEmail`)
 - **FR-020**: System MUST allow admin to reject or relaunch existing flows
 - **FR-021**: System MUST implement idempotent consumers for Kafka events
 - **FR-022**: System MUST implement email retry with backoff and DLQ (max 5 attempts)
 - **FR-023**: System MUST expose healthcheck and Prometheus metrics endpoints
 - **FR-024**: System SHOULD provide admin KPI dashboard
 - **FR-025**: System MUST use OpenAPI/Swagger UI enabled in production
+- **FR-026**: Approval emails MUST be branded HTML with: workflow title, step number, document details, approval link with JWS token, instructions in Spanish
+- **FR-027**: Email service MUST NOT re-publish to Kafka topic after sending (prevents infinite loop)
+- **FR-028**: `FlowOrchestratorService` MUST generate JWS approval tokens via `JwtTokenService.generateApprovalToken()` before sending emails
+- **FR-029**: Email templates MUST be external HTML files in `src/backend/src/main/resources/templates/email/` using Thymeleaf for variable interpolation
+- **FR-030**: System MUST NOT hardcode HTML in Java source files — all email markup lives in `.html` templates
 
 ### Key Entities
 
