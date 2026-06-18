@@ -49,7 +49,7 @@ app-workflow-net-angular — Aplicación desarrollada con Spring Boot v4.1 con O
 - Las credenciales del administrador se indicarán en el mismo .env de la raíz del proyecto.
 - Usaremos la skill previamente instalada "npx skills add https://github.com/vercel-labs/skills --skill find-skills" para buscar nuevas habilidades necesarias.
 - Los usuarios que hayan iniciado secion, deberan quedar registrados en la base de datos, indicando que accion realizaron, que aceptaron, su ultimo login, etc. Esto para una trazabilidad de las acciones realizadas.
-- La credenciales del administrador se indicaran en el mismo .env de la raiz de proyecto
+- La credenciales del administrador se indicaran en el mismo .env de la raiz de proyecto.
 
 
 1. Automatización de Fechas Límite y Limpieza

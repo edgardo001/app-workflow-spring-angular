@@ -97,3 +97,4 @@ Available commands:
 | **Idempotency** | `approval-{flowId}-{step}` unique key prevents double processing |
 | **JWS Tokens** | Stateless action tokens contain `flowId`, `email`, `stepNumber` — validated by backend |
 | **TTL Indexes** | Auto-cleanup of expired tokens and temporary documents with no cron jobs needed |
+| **Strict Email Matching** | Verification that the authenticated user's email matches the JWS token's email claim prevents cross-user signature impersonation. |
