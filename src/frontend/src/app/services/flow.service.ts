@@ -90,4 +90,8 @@ export class FlowService {
   relaunchFlow(id: string): Observable<Flow> {
     return this.http.post<Flow>(`/api/flows/${id}/relaunch`, {});
   }
+
+  startFlow(id: string): Observable<Flow> {
+    return this.http.post<Flow>(`/api/flows/${id}/start`, {});
+  }
 }

@@ -45,14 +45,9 @@ public class AuthController {
     public ResponseEntity<Void> githubCallbackGet(@org.springframework.web.bind.annotation.RequestParam("code") String code, jakarta.servlet.http.HttpServletResponse httpServletResponse) {
         AuthResponse response = authService.processOAuthLogin(code);
 
-        jakarta.servlet.http.Cookie cookie = new jakarta.servlet.http.Cookie("auth_token", response.token());
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/");
-        cookie.setMaxAge(86400);
-        httpServletResponse.addCookie(cookie);
-
-        return ResponseEntity.status(302).header("Location", frontendUrl.trim() + "/dashboard").build();
+        return ResponseEntity.status(302)
+                .header("Location", frontendUrl.trim() + "/auth/callback?token=" + response.token())
+                .build();
     }
 
     @ExceptionHandler(RuntimeException.class)

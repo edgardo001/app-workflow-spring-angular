@@ -5,6 +5,8 @@ import com.workflowspring.flow.application.dto.FlowResponse;
 import com.workflowspring.flow.application.mapper.FlowMapper;
 import com.workflowspring.flow.domain.model.Flow;
 import com.workflowspring.flow.domain.model.FlowStatus;
+import com.workflowspring.flow.domain.model.Participant;
+import com.workflowspring.flow.domain.service.FlowOrchestratorService;
 import com.workflowspring.flow.infrastructure.persistence.FlowRepository;
 import org.springframework.stereotype.Service;
 
@@ -17,15 +19,29 @@ public class FlowService {
 
     private final FlowRepository flowRepository;
     private final FlowMapper flowMapper;
+    private final FlowOrchestratorService flowOrchestratorService;
 
-    public FlowService(FlowRepository flowRepository, FlowMapper flowMapper) {
+    public FlowService(FlowRepository flowRepository, FlowMapper flowMapper,
+                       FlowOrchestratorService flowOrchestratorService) {
         this.flowRepository = flowRepository;
         this.flowMapper = flowMapper;
+        this.flowOrchestratorService = flowOrchestratorService;
     }
 
     public FlowResponse createFlow(CreateFlowRequest request, String createdBy) {
         Flow flow = new Flow(request.getTitle(), request.getDescription(), request.getDeadline(), createdBy);
-        return flowMapper.toResponse(flowRepository.save(flow));
+
+        if (request.getDestinatarios() != null) {
+            for (String email : request.getDestinatarios()) {
+                if (email != null && !email.isBlank()) {
+                    flow.addParticipant(new Participant(email.trim(), "APPROVER"));
+                }
+            }
+        }
+
+        flowRepository.save(flow);
+        flowOrchestratorService.startFlow(flow);
+        return flowMapper.toResponse(flow);
     }
 
     public FlowResponse getFlow(String id) {
@@ -46,7 +62,10 @@ public class FlowService {
     }
 
     public List<FlowResponse> getPendingFlows(String userEmail) {
-        return flowRepository.findByParticipantsEmail(userEmail).stream()
+        List<Flow> created = flowRepository.findByCreatedBy(userEmail);
+        List<Flow> participant = flowRepository.findByParticipantsEmail(userEmail);
+        return Stream.concat(created.stream(), participant.stream())
+                .distinct()
                 .filter(f -> f.getStatus() == FlowStatus.ACTIVE || f.getStatus() == FlowStatus.PENDING_APPROVAL)
                 .map(flowMapper::toResponse)
                 .collect(Collectors.toList());

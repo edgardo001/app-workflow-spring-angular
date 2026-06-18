@@ -1,6 +1,7 @@
 package com.workflowspring.flow.domain.service;
 
 import com.workflowspring.audit.AuditService;
+import com.workflowspring.auth.JwtTokenService;
 import com.workflowspring.document.DocumentService;
 import com.workflowspring.document.infrastructure.TempDocumentRepository;
 import com.workflowspring.flow.domain.event.DocumentApprovedEvent;
@@ -14,13 +15,12 @@ import com.workflowspring.flow.domain.model.DocumentMetadata;
 import com.workflowspring.flow.domain.model.Flow;
 import com.workflowspring.flow.domain.model.FlowStatus;
 import com.workflowspring.flow.domain.model.Participant;
+import com.workflowspring.flow.infrastructure.email.EmailSenderService;
 import com.workflowspring.flow.infrastructure.messaging.FlowEventPublisher;
 import com.workflowspring.flow.infrastructure.persistence.FlowRepository;
 import com.workflowspring.flow.infrastructure.persistence.IdempotencyRepository;
-import com.workflowspring.shared.event.EmailSendEvent;
 import org.springframework.stereotype.Service;
 
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,41 +39,55 @@ public class FlowOrchestratorService {
     private final AuditService auditService;
     private final DocumentService documentService;
     private final TempDocumentRepository tempDocumentRepository;
+    private final EmailSenderService emailSenderService;
+    private final JwtTokenService jwtTokenService;
 
     public FlowOrchestratorService(FlowRepository flowRepository,
                                    FlowEventPublisher eventPublisher,
                                    IdempotencyRepository idempotencyRepository,
                                    AuditService auditService,
                                    DocumentService documentService,
-                                   TempDocumentRepository tempDocumentRepository) {
+                                   TempDocumentRepository tempDocumentRepository,
+                                   EmailSenderService emailSenderService,
+                                   JwtTokenService jwtTokenService) {
         this.flowRepository = flowRepository;
         this.eventPublisher = eventPublisher;
         this.idempotencyRepository = idempotencyRepository;
         this.auditService = auditService;
         this.documentService = documentService;
         this.tempDocumentRepository = tempDocumentRepository;
+        this.emailSenderService = emailSenderService;
+        this.jwtTokenService = jwtTokenService;
     }
 
     public void startFlow(Flow flow) {
+        if (flow.getParticipants().isEmpty()) {
+            throw new IllegalStateException("Cannot start a flow without participants");
+        }
+
         flow.setStatus(FlowStatus.ACTIVE);
         flow.setCurrentStep(0);
         flowRepository.save(flow);
 
-        FlowCreatedEvent createdEvent = new FlowCreatedEvent(flow.getId(), flow.getTitle(), flow.getCreatedBy());
-        eventPublisher.publishFlowCreated(createdEvent);
+        eventPublisher.publishFlowCreated(new FlowCreatedEvent(flow.getId(), flow.getTitle(), flow.getCreatedBy()));
 
         Participant first = flow.getParticipants().get(0);
-        FlowStartedEvent startedEvent = new FlowStartedEvent(flow.getId(), 0, first.getEmail());
-        eventPublisher.publishFlowStarted(startedEvent);
+        eventPublisher.publishFlowStarted(new FlowStartedEvent(flow.getId(), 0, first.getEmail()));
 
-        EmailSendEvent emailEvent = new EmailSendEvent(
-                flow.getId(),
+        String token = jwtTokenService.generateApprovalToken(flow.getId(), first.getEmail());
+        List<String> docNames = flow.getDocuments().stream()
+                .map(DocumentMetadata::getFileName)
+                .collect(Collectors.toList());
+
+        emailSenderService.sendApprovalEmail(
                 first.getEmail(),
-                "Approval Required: " + flow.getTitle(),
-                "Please review and approve the flow: " + flow.getTitle(),
-                List.of(),
-                0);
-        eventPublisher.publishEmailSend(emailEvent);
+                flow.getTitle(),
+                token,
+                flow.getId(),
+                0,
+                flow.getParticipants().size(),
+                flow.getDescription(),
+                docNames);
 
         auditService.logEvent(flow.getId(), "FLOW_STARTED by " + flow.getCreatedBy());
     }
@@ -109,12 +123,7 @@ public class FlowOrchestratorService {
             List<String> participantEmails = flow.getParticipants().stream()
                     .map(Participant::getEmail)
                     .collect(Collectors.toList());
-            EmailSendEvent emailEvent = new EmailSendEvent(
-                    flowId, String.join(",", participantEmails),
-                    "Flow Completed: " + flow.getTitle(),
-                    "All approvals have been obtained.",
-                    List.of(), stepNumber);
-            eventPublisher.publishEmailSend(emailEvent);
+            emailSenderService.sendCompletionEmail(participantEmails, flow.getTitle(), List.of(), List.of());
 
             auditService.logEvent(flowId, "FLOW_COMPLETED last step " + stepNumber);
         } else {
@@ -123,14 +132,21 @@ public class FlowOrchestratorService {
 
             int nextStep = flow.getCurrentStep();
             Participant next = flow.getParticipants().get(nextStep);
-            EmailSendEvent emailEvent = new EmailSendEvent(
-                    flowId,
+
+            String token = jwtTokenService.generateApprovalToken(flowId, next.getEmail());
+            List<String> docNames = flow.getDocuments().stream()
+                    .map(DocumentMetadata::getFileName)
+                    .collect(Collectors.toList());
+
+            emailSenderService.sendApprovalEmail(
                     next.getEmail(),
-                    "Approval Required: " + flow.getTitle(),
-                    "Please review and approve the next step.",
-                    List.of(),
-                    nextStep);
-            eventPublisher.publishEmailSend(emailEvent);
+                    flow.getTitle(),
+                    token,
+                    flowId,
+                    nextStep,
+                    flow.getParticipants().size(),
+                    flow.getDescription(),
+                    docNames);
 
             auditService.logEvent(flowId, "STEP_" + stepNumber + "_APPROVED by " + participantEmail);
         }
@@ -157,14 +173,7 @@ public class FlowOrchestratorService {
         List<String> participantEmails = flow.getParticipants().stream()
                 .map(Participant::getEmail)
                 .collect(Collectors.toList());
-        EmailSendEvent emailEvent = new EmailSendEvent(
-                flowId,
-                String.join(",", participantEmails),
-                "Flow Rejected: " + flow.getTitle(),
-                "The flow has been rejected. Reason: " + reason,
-                List.of(),
-                stepNumber);
-        eventPublisher.publishEmailSend(emailEvent);
+        emailSenderService.sendRejectionNotification(participantEmails, flow.getTitle(), reason);
 
         auditService.logEvent(flowId, "FLOW_REJECTED at step " + stepNumber + " by " + participantEmail);
         return flow;
@@ -182,14 +191,7 @@ public class FlowOrchestratorService {
         List<String> participantEmails = flow.getParticipants().stream()
                 .map(Participant::getEmail)
                 .collect(Collectors.toList());
-        EmailSendEvent emailEvent = new EmailSendEvent(
-                flowId,
-                String.join(",", participantEmails),
-                "Flow Expired: " + flow.getTitle(),
-                "The approval deadline has passed.",
-                List.of(),
-                flow.getCurrentStep());
-        eventPublisher.publishEmailSend(emailEvent);
+        emailSenderService.sendExpirationNotification(participantEmails, flow.getTitle());
 
         auditService.logEvent(flowId, "FLOW_EXPIRED");
         return flow;
@@ -203,14 +205,20 @@ public class FlowOrchestratorService {
             int step = flow.getCurrentStep();
             Participant current = flow.getParticipants().get(step);
 
-            EmailSendEvent emailEvent = new EmailSendEvent(
-                    flowId,
+            String token = jwtTokenService.generateApprovalToken(flowId, current.getEmail());
+            List<String> docNames = flow.getDocuments().stream()
+                    .map(DocumentMetadata::getFileName)
+                    .collect(Collectors.toList());
+
+            emailSenderService.sendApprovalEmail(
                     current.getEmail(),
-                    "Reminder: Approval Required - " + flow.getTitle(),
-                    "This is a reminder to review and approve the flow.",
-                    List.of(),
-                    step);
-            eventPublisher.publishEmailSend(emailEvent);
+                    "Recordatorio: " + flow.getTitle(),
+                    token,
+                    flowId,
+                    step,
+                    flow.getParticipants().size(),
+                    flow.getDescription(),
+                    docNames);
 
             auditService.logEvent(flowId, "REPAIR_EMAIL_RESENT for step " + step);
         } else {

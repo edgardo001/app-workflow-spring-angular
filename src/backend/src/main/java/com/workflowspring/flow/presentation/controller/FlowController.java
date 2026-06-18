@@ -64,6 +64,13 @@ public class FlowController {
         flowService.cancelFlow(id, request.getReason());
     }
 
+    @PostMapping("/{id}/start")
+    public FlowResponse start(@PathVariable String id) {
+        Flow flow = flowRepository.findById(id).orElseThrow();
+        flowOrchestratorService.startFlow(flow);
+        return flowService.getFlow(id);
+    }
+
     @GetMapping("/pending")
     public List<FlowResponse> getPending() {
         return flowService.getPendingFlows(getCurrentUserId());
