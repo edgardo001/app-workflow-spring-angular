@@ -117,6 +117,45 @@
 - [x] Completion email with document attachment
 - [x] Retry logic via @RetryableTopic
 
+### Task 3.5 — Bug Fix: Pending Flows Query (BUG-001)
+**Files**: `src/backend/src/main/java/com/workflownet/flow/application/service/FlowService.java`
+- [x] `getPendingFlows()` must query by BOTH `createdBy` AND `participantEmail`
+- [x] Flow creator sees their own active/pending flows in the pending list
+- [x] Merge results with `.distinct()` to avoid duplicates
+
+### Task 3.6 — Bug Fix: Branded HTML Email Template (BUG-002, BUG-005)
+**Files**: `src/backend/src/main/java/com/workflownet/flow/infrastructure/email/EmailSenderService.java`
+- [x] Replace plain-text emails with branded HTML template
+- [x] Include: workflow title, step number, document details (name, size), approval link with JWS token
+- [x] Instructions in Spanish: "Ha recibido una solicitud de aprobacion"
+- [x] Add `generateApprovalLink()` method that calls `JwtTokenService.generateApprovalToken()`
+- [x] Use `${APP_FRONTEND_URL}` from config for the approval link base URL
+
+### Task 3.7 — Bug Fix: Remove Kafka Re-publish Loop (BUG-003)
+**Files**: `src/backend/src/main/java/com/workflownet/flow/infrastructure/email/EmailSenderService.java`
+- [x] Remove `kafkaTemplate.send("email.send", ...)` from `sendNotificationEmail()`
+- [x] Remove `kafkaTemplate.send("email.send", ...)` from `sendRejectionNotification()`
+- [x] Remove `kafkaTemplate.send("email.send", ...)` from `sendCompletionEmail()`
+- [x] Keep `kafkaTemplate.send("email.send", ...)` ONLY in `sendApprovalEmail()` (for audit trail)
+
+### Task 3.8 — Bug Fix: Orchestrator Token Generation (BUG-004)
+**Files**: `src/backend/src/main/java/com/workflownet/flow/domain/service/FlowOrchestratorService.java`
+- [x] Inject `JwtTokenService` into `FlowOrchestratorService`
+- [x] In `startFlow()`: generate JWS token for first participant before sending email
+- [x] In `processApproval()`: generate JWS token for next participant before sending email
+- [x] Pass token to `emailSenderService.sendApprovalEmail()` instead of publishing raw `EmailSendEvent`
+- [x] Call `emailSenderService.sendApprovalEmail()` directly instead of going through Kafka for emails
+
+### Task 3.9 — Thymeleaf Email Templates
+**Files**: `build.gradle.kts`, `src/backend/src/main/resources/templates/email/*`, `EmailSenderService.java`
+- [x] Add `spring-boot-starter-thymeleaf` dependency
+- [x] Create `templates/email/approval.html` — approval request with flowTitle, stepInfo, description, documentNames, approvalLink
+- [x] Create `templates/email/rejection.html` — rejection notification with flowTitle, reason
+- [x] Create `templates/email/completion.html` — completion notification with flowTitle
+- [x] Create `templates/email/expiration.html` — expiration notification with flowTitle
+- [x] Refactor `EmailSenderService` to use `TemplateEngine` instead of hardcoded HTML strings
+- [x] Remove all `buildXxxHtml()` private methods from `EmailSenderService`
+
 ---
 
 ## Phase 4: Application Services & REST API

@@ -1,4 +1,4 @@
-# WorkflowNet
+# APP-WORKFLOW-SPRING-ANGULAR
 
 Sistema de aprobación secuencial de documentos con **Arquitectura Orientada a Eventos** y **SAGA Orquestado**.
 

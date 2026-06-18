@@ -50,6 +50,9 @@ app-workflow-net-angular — Aplicación desarrollada con Spring Boot v4.1 con O
 - Usaremos la skill previamente instalada "npx skills add https://github.com/vercel-labs/skills --skill find-skills" para buscar nuevas habilidades necesarias.
 - Los usuarios que hayan iniciado secion, deberan quedar registrados en la base de datos, indicando que accion realizaron, que aceptaron, su ultimo login, etc. Esto para una trazabilidad de las acciones realizadas.
 - La credenciales del administrador se indicaran en el mismo .env de la raiz de proyecto
+- Agrega turnstile de cloudflare al login, no puede hacer login si no acepta el recaptcha.
+- Agrega un aviso en todas la paginas cuando el backend no esta disponible, un tipo de alerta, un la luz que indique el estado.
+- En el login se agrega "Al continuar, aceptas los términos de uso y la política de privacidad.", implementa las paginas correspondientes.
 
 
 1. Automatización de Fechas Límite y Limpieza
