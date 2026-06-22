@@ -2,38 +2,88 @@
 # WorkflowNet — Docker Compose (Producción)
 # =============================================================================
 # Uso: docker compose -f src/docker/docker-compose.yml --env-file .env up -d
+#
+# Arquitectura de contenedores:
+#
+#   Internet → Traefik (TLS) → Frontend (Nginx) → Backend (Spring Boot)
+#                                                 ↕
+#                                            MongoDB  Kafka
+#                                                 ↕
+#                                          Prometheus → Grafana
+#
+# Redes:
+#   - traefik-net: solo Traefik + Frontend + Backend (para descubrimiento de servicios)
+#   - mvp-network: todos los servicios (para comunicación interna)
+#
+# Flujo de requests:
+#   1. Usuario visita https://app.tu-dominio.com
+#   2. Traefik resuelve TLS y proxya al Frontend (Nginx)
+#   3. Frontend sirve la SPA Angular
+#   4. Cuando la SPA llama /api/*, Nginx proxya al Backend
+#   5. Backend se comunica con MongoDB y Kafka en la misma red
 # =============================================================================
 
 services:
-  # --- Traefik (Reverse Proxy + TLS) ---
+  # =============================================================================
+  # Traefik — Reverse Proxy + TLS automático
+  # =============================================================================
+  # ¿Por qué Traefik y no Nginx como reverse proxy?
+  #   - Traefik se integra nativamente con Docker: detecta contenedores nuevos automáticamente
+  #   - TLS automático con Let's Encrypt (sin configurar certs manualmente)
+  #   - Dashboard web para inspeccionar rutas y servicios
+  #   - Labels en docker-compose.yml definen las rutas (no archivos de config separados)
+  #
+  # ¿Por qué no un Load Balancer?
+  #   - Solo tenemos 1 instancia de cada servicio
+  #   - Traefik cumple el rol de reverse proxy + TLS + routing
+  #   - Si escalamos, Traefik distribuye load automáticamente
   traefik:
     image: traefik:v3.7.1
     container_name: workflow-traefik
-    restart: unless-stopped
+    restart: unless-stopped  # Reinicia automáticamente si crash, excepto si se detuvo manualmente
     security_opt:
-      - no-new-privileges:true
+      - no-new-privileges:true  # Seguridad: impide que procesos dentro del contenedor obtengan más privilegios
     networks:
-      - traefik-net
+      - traefik-net  # Solo necesita estar en esta red para discoverar Frontend y Backend
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"    # HTTP (redirige a HTTPS)
+      - "443:443"  # HTTPS (el puerto real donde sirve)
     environment:
+      # Token de Cloudflare para DNS challenge (Let's Encrypt verifica que controlas el dominio)
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
     volumes:
+      # Socket de Docker: permite a Traefik consultar la API de Docker para discoverar contenedores.
+      # :ro = solo lectura (Traefik NO modifica contenedores, solo los lee).
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Configuración de Traefik (dashboard, providers, etc.)
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      # Certificados TLS generados por Let's Encrypt (ACME). Debe persistir entre reinicios.
       - ./data/acme.json:/etc/traefik/acme/acme.json
     labels:
+      # Habilita Traefik para este contenedor
       - "traefik.enable=true"
+      # Ruta del dashboard: acceder a https://traefik.tu-dominio.com
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DOMAIN:-traefik.localhost}`)"
       - "traefik.http.routers.traefik.tls=true"
       - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
       - "traefik.http.routers.traefik.service=api@internal"
+      # Dashboard protegido con Basic Auth (hash de la contraseña)
       - "traefik.http.routers.traefik.middlewares=auth"
       - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_PASS_HASH:?Variable TRAEFIK_PASS_HASH no definida}"
 
-  # --- MongoDB 8 ---
+  # =============================================================================
+  # MongoDB 8 — Base de datos
+  # =============================================================================
+  # ¿Por qué MongoDB y no PostgreSQL?
+  #   - Flujo de aprobación: documentos con estructura variable (schemas diferentes por tenant)
+  #   - Audit log: escritura append-only, MongoDB es más rápido para inserts secuenciales
+  #   - TTL indexes: limpieza automática de tokens expirados sin cron jobs
+  #   - MongoDB 8: soporte nativo para transacciones ACID (necesario para SAGA)
+  #
+  # ¿Por qué volumen dedicado (mongo-data)?
+  #   - Los datos NO deben perderse al hacer docker compose down
+  #   - Solo se borran con docker compose down -v (intencional)
   mongodb:
     image: mongo:8
     container_name: workflow-mongodb
@@ -41,25 +91,47 @@ services:
     networks:
       - mvp-network
     ports:
-      - "27017:27017"
+      - "27017:27017"  # Exposto para debugging local. En producción, solo accesible dentro de la red Docker.
     environment:
+      # Credenciales root: se configuran UNA VEZ en la primera ejecución.
+      # Cambiarlas después requiere borrar el volumen mongo-data.
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?Debe definir MONGO_ROOT_USER en .env}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Debe definir MONGO_ROOT_PASSWORD en .env}
       MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-workflow-net}
     volumes:
+      # Datos persistentes: sobreviven reinicios del contenedor
       - mongo-data:/data/db
+      # Scripts de inicialización: se ejecutan solo en la primera ejecución (volumen vacío)
       - ./mongo/init:/docker-entrypoint-initdb.d
     healthcheck:
+      # Health check: verifica que MongoDB responde a comandos básicos.
+      # Otros servicios (Backend) esperan a que este health check pase antes de iniciar.
       test: echo 'db.runCommand("ping").ok' | mongosh --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 10s    # Cada 10 segundos
+      timeout: 5s       # Si no responde en 5s, se marca como fallido
+      retries: 5        # Después de 5 fallos consecutivos, se marca unhealthy
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 512M  # Límite de memoria para evitar que un VPS de 1GB se quede sin RAM
 
-  # --- Kafka (KRaft mode - sin Zookeeper) ---
+  # =============================================================================
+  # Kafka — Mensajería event-driven (KRaft mode, sin Zookeeper)
+  # =============================================================================
+  # ¿Por qué Kafka y no RabbitMQ?
+  #   - Event sourcing: los eventos se persisten y se pueden re-procesar
+  #   - Retención de mensajes: un consumer nuevo puede leer eventos pasados
+  #   - SAGA orchestration: Kafka mantiene el estado del flujo de aprobación
+  #   - Escalabilidad: si crece el volumen, Kafka escala horizontalmente
+  #
+  # ¿Por qué KRaft y no Zookeeper?
+  #   - Zookeeper es un servicio adicional que mantener (más complejidad)
+  #   - KRaft es el modo nativo de Kafka desde la versión 3.3+
+  #   - Un solo contenedor Kafka cumple ambos roles (broker + controller)
+  #
+  # Puertos:
+  #   - 9092: expuesto al host (para debugging con kcat/kafka-console-consumer)
+  #   - 29092: interno entre contenedores (el que usa el Backend)
   kafka:
     image: apache/kafka:latest
     container_name: workflow-kafka
@@ -67,21 +139,36 @@ services:
     networks:
       - mvp-network
     ports:
-      - "9092:9092"
+      - "9092:9092"  # Solo para debugging local. En producción, usar el puerto interno 29092.
     environment:
+      # --- KRaft Configuration (sin Zookeeper) ---
       KAFKA_NODE_ID: 1
+      # Un solo nodo cumple ambos roles: broker (almacena mensajes) + controller (gestiona cluster)
       KAFKA_PROCESS_ROLES: broker,controller
+      # Quorum de controllers: solo hay 1 voter (este nodo)
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # --- Listeners ---
+      # PLAINTEXT (29092): para contenedores internos (Backend). Docker DNS resuelve "kafka" a la IP del contenedor.
+      # PLAINTEXT_HOST (9092): para el host (debugging). Escucha en todas las interfaces (0.0.0.0).
+      # CONTROLLER (9093): comunicación entre controllers (solo 1 en nuestro caso).
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # ADVERTISED_LISTENERS: qué dirección le dice Kafka a cada consumer para conectarse.
+      #   - "kafka:29092" para contenedores internos (resuelto por Docker DNS)
+      #   - "localhost:9092" para el host
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Replication factor 1: solo hay 1 broker, así que cada partición tiene 1 sola copia.
+      # En producción con múltiples brokers, usar 3 para tolerancia a fallos.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Cluster ID fijo: necesario para KRaft. En un cluster nuevo, generar con: kafka-storage.sh random-uuid
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
+      # Verifica que el broker está aceptando conexiones.
+      # start_period: 30s porque Kafka tarda ~20s en arrancar completamente.
       test: kafka-broker-api-versions --bootstrap-server localhost:9092
       interval: 10s
       timeout: 10s
@@ -92,51 +179,82 @@ services:
         limits:
           memory: 512M
 
-  # --- Backend (Spring Boot) ---
+  # =============================================================================
+  # Backend — Spring Boot API
+  # =============================================================================
+  # Construye desde src/backend/Dockerfile.
+  # Multi-stage build: Gradle (compilación) → JRE (runtime).
+  #
+  # Flujo de dependencias:
+  #   1. MongoDB debe estar healthy (responde a ping)
+  #   2. Kafka debe estar healthy (acepta conexiones)
+  #   3. Backend inicia y conecta a ambos
+  #
+  # ¿Por qué depends_on con condition: service_healthy?
+  #   - Sin esto, el Backend intentaría conectarse a MongoDB antes de que esté listo
+  #   - Spring Boot lanzaría error y el contenedor crashería
+  #   - Con healthcheck, Docker espera a que el servicio esté realmente listo
   backend:
     build:
-      context: ../../src/backend
+      context: ../../src/backend  # Path relativo desde docker-compose.yml hasta la raíz del backend
       dockerfile: Dockerfile
     container_name: workflow-backend
     restart: unless-stopped
     depends_on:
       mongodb:
-        condition: service_healthy
+        condition: service_healthy  # Espera a que MongoDB responda ping
       kafka:
-        condition: service_healthy
+        condition: service_healthy  # Espera a que Kafka acepte conexiones
     networks:
-      - mvp-network
-      - traefik-net
+      - mvp-network   # Comunicación con MongoDB, Kafka, Prometheus
+      - traefik-net   # Traefik descubre este contenedor via labels
     environment:
+      # --- Server ---
       SERVER_PORT: 8080
+      # --- MongoDB ---
+      # Host: "mongodb" es el nombre del servicio Docker. Docker DNS lo resuelve a la IP del contenedor.
       MONGO_ROOT_USER: ${MONGO_ROOT_USER:?Debe definir MONGO_ROOT_USER en .env}
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Debe definir MONGO_ROOT_PASSWORD en .env}
       MONGO_DATABASE: ${MONGO_DATABASE:-workflow-net}
       MONGODB_HOST: mongodb
+      # --- Kafka ---
+      # Puerto 29092 (interno), NO 9092 (del host). Docker DNS resuelve "kafka".
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # --- Email (SMTP) ---
       MAIL_HOST: ${MAIL_HOST:?Debe definir MAIL_HOST en .env}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:?Debe definir MAIL_USERNAME en .env}
       MAIL_PASSWORD: ${MAIL_PASSWORD:?Debe definir MAIL_PASSWORD en .env}
       MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
       MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      # --- GitHub OAuth ---
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Debe definir GITHUB_CLIENT_ID en .env}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Debe definir GITHUB_CLIENT_SECRET en .env}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:?Debe definir GITHUB_REDIRECT_URI en .env}
       APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:4200}
+      # --- JWT ---
       JWT_SECRET: ${JWT_SECRET:?Debe definir JWT_SECRET en .env}
-      FLOW_GRACE_PERIOD_DAYS: ${FLOW_GRACE_PERIOD_DAYS:-3}
-      DOCUMENT_MAX_SIZE: ${DOCUMENT_MAX_SIZE:-2097152}
-      DOCUMENT_MAX_COUNT: ${DOCUMENT_MAX_COUNT:-5}
+      # --- App Config ---
+      FLOW_GRACE_PERIOD_DAYS: ${FLOW_GRACE_PERIOD_DAYS:-3}  # Días de gracia antes de expirar un flujo
+      DOCUMENT_MAX_SIZE: ${DOCUMENT_MAX_SIZE:-2097152}       # 2MB por documento
+      DOCUMENT_MAX_COUNT: ${DOCUMENT_MAX_COUNT:-5}           # 5 documentos máximo por flujo
+      # --- Swagger ---
       SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:-true}
+      # --- Logging ---
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-WARN}
       LOG_LEVEL_SPRING: ${LOG_LEVEL_SPRING:-WARN}
       LOG_LEVEL_SECURITY: ${LOG_LEVEL_SECURITY:-WARN}
       LOG_LEVEL_KAFKA: ${LOG_LEVEL_KAFKA:-WARN}
     volumes:
-      - temp-docs:/app/temp-documents
+      # Documentos temporales: se guardan aquí durante el flujo de aprobación.
+      # Al completar el flujo, se eliminan y solo queda el hash SHA-256.
+      # Se comparte entre reinicios (no se borran al hacer restart).
+      temp-docs:/app/temp-documents
     labels:
+      # --- Traefik Routing ---
+      # Traefik detecta estas labels y crea la ruta automáticamente:
+      #   https://api.tu-dominio.com → localhost:8080
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-net"
       - "traefik.http.routers.backend.rule=Host(`${BACKEND_DOMAIN:-api.localhost}`)"
@@ -144,6 +262,9 @@ services:
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
     healthcheck:
+      # Spring Boot Actuator: endpoint /actuator/health que reporta el estado de la app.
+      # Si MongoDB o Kafka no están conectados, Actuator reporta DOWN y el health check falla.
+      # start_period: 60s porque Spring Boot tarda ~30-40s en arrancar completamente.
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
@@ -154,7 +275,22 @@ services:
         limits:
           memory: 512M
 
-  # --- Frontend (Angular + Nginx) ---
+  # =============================================================================
+  # Frontend — Angular SPA (servida por Nginx)
+  # =============================================================================
+  # Construye desde src/frontend/Dockerfile.
+  # Multi-stage build: Node (compilación Angular) → Nginx (runtime).
+  #
+  # ¿Por qué Nginx y no Node/Express?
+  #   - Nginx es mucho más rápido para servir archivos estáticos
+  #   - Ocupa menos memoria (~5MB vs ~50MB de Node)
+  #   - Maneja mejor el concurrent connections
+  #   - Soporte nativo para gzip, caching headers, etc.
+  #
+  # Proxy inverso:
+  #   - Nginx sirve la SPA en /
+  #   - Nginx proxya /api/ al Backend (ver nginx.conf)
+  #   - Esto evita problemas de CORS en producción
   frontend:
     build:
       context: ../../src/frontend
@@ -163,11 +299,12 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_healthy  # El Frontend espera a que el Backend esté listo
     networks:
       - mvp-network
       - traefik-net
     labels:
+      # Traefik routing: https://app.tu-dominio.com → localhost:80
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-net"
       - "traefik.http.routers.frontend.rule=Host(`${FRONTEND_DOMAIN:-app.localhost}`)"
@@ -179,13 +316,17 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 30s  # Nginx arranca rápido (~5s), pero damos margen
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 128M  # Nginx + archivos estáticos: muy poco consumo
 
-  # --- Prometheus ---
+  # =============================================================================
+  # Prometheus — Métricas y monitoreo
+  # =============================================================================
+  # Recolecta métricas del Backend (Spring Boot Actuator + Micrometer).
+  # Scraping cada 15s: suficiente para dashboards operacionales.
   prometheus:
     image: prom/prometheus:latest
     container_name: workflow-prometheus
@@ -193,16 +334,22 @@ services:
     networks:
       - mvp-network
     ports:
-      - "9090:9090"
+      - "9090:9090"  # UI de Prometheus para consultas PromQL
     volumes:
+      # Configuración: define qué endpoints scrapear y cada cuánto.
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
+      # Datos históricos: persisten entre reinicios.
+      prometheus-data:/prometheus
     deploy:
       resources:
         limits:
           memory: 256M
 
-  # --- Grafana ---
+  # =============================================================================
+  # Grafana — Dashboards KPI
+  # =============================================================================
+  # Visualiza las métricas de Prometheus con dashboards interactivos.
+  # Pre-configurado con datasource de Prometheus y dashboards de ejemplo.
   grafana:
     image: grafana/grafana:latest
     container_name: workflow-grafana
@@ -210,25 +357,50 @@ services:
     networks:
       - mvp-network
     ports:
-      - "3000:3000"
+      - "3000:3000"  # UI de Grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Debe definir GRAFANA_ADMIN_USER en .env}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Debe definir GRAFANA_ADMIN_PASSWORD en .env}
     volumes:
+      # Datos de Grafana: dashboards creados, configuración de usuarios, etc.
       - grafana-data:/var/lib/grafana
+      # Provisioning automático: datasource de Prometheus y dashboards predefinidos.
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     deploy:
       resources:
         limits:
           memory: 256M
 
+# =============================================================================
+# Volúmenes persistentes
+# =============================================================================
+# Los volúmenes permiten que los datos sobrevivan a docker compose down/up.
+# Solo se borran con docker compose down -v (flag -v = --volumes).
 volumes:
-  mongo-data:
-  kafka-data:
-  grafana-data:
-  prometheus-data:
-  temp-docs:
+  mongo-data:      # Datos de MongoDB (colecciones, índices, usuarios)
+  kafka-data:      # Datos de Kafka (topics, partitions, offsets)
+  grafana-data:    # Dashboards y configuración de Grafana
+  prometheus-data: # Métricas históricas de Prometheus
+  temp-docs:       # Documentos temporales del flujo de aprobación (se borran al completar)
 
+# =============================================================================
+# Redes
+# =============================================================================
+# Dos redes para separar concerns:
+#
+# mvp-network:
+#   - Comunicación interna entre todos los servicios
+#   - Backend → MongoDB, Backend → Kafka, Prometheus → Backend, Grafana → Prometheus
+#
+# traefik-net:
+#   - Solo Traefik, Frontend y Backend
+#   - Traefik descubre contenedores con labels via Docker API
+#   - Permite que Traefik proxye al Backend y Frontend
+#
+# ¿Por qué dos redes y no una?
+#   - Seguridad: MongoDB y Kafka NO necesitan ser descubiertos por Traefik
+#   - Separación de concerns: routing (traefik-net) vs data (mvp-network)
+#   - En producción, podrías agregar una red "monitoring" para Prometheus/Grafana
 networks:
   mvp-network:
     driver: bridge

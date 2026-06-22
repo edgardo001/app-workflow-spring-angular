@@ -1,10 +1,32 @@
+# =============================================================================
+# Frontend .dockerignore
+# =============================================================================
+# Excluye archivos/directorios que NO deben enviarse al daemon Docker.
+# Reduce el build context y evita conflictos (ej: node_modules del host vs container).
+# =============================================================================
+
+# Git: historial de commits (~500MB). Nunca se necesita en el build.
 .git
+
+# Node modules: dependencias del host.
+# En Docker se instalan limpias via `npm ci`. Si se copian las del host,
+# pueden tener binaries compilados para la arquitectura equivocada (ej: Windows → Linux).
 node_modules
+
+# Build output: archivos Angular compilados del host.
+# El Dockerfile genera sus propios artifacts limpios via `npm run build`.
 dist
+
+# Angular cache: cache de compilación del CLI (~50MB).
+# En Docker se genera una cache nueva y limpia.
 **/.angular
+
+# IDE: archivos de configuración.
 **/.idea
 **/*.iml
 **/.vscode
+
+# OS: archivos temporales.
 **/*.swp
 **/.DS_Store
 **/Thumbs.db
