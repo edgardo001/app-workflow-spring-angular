@@ -333,7 +333,10 @@ stateDiagram-v2
 cp .env.example .env
 # Editar .env con valores reales
 
-# 2. Iniciar todo (MongoDB, Kafka + Backend + Frontend)
+# 2. Configurar Git Hooks (una sola vez)
+.\setup-hooks.bat
+
+# 3. Iniciar todo (MongoDB, Kafka + Backend + Frontend)
 .\start-dev.bat
 ```
 
@@ -444,6 +447,128 @@ Las llamadas a `http://localhost:4200/api/*` se proxean automáticamente a `http
   # Limpieza general de volúmenes huérfanos locales si es necesario
   docker volume prune -f
   ```
+
+---
+
+## Git Hooks (Protección del Repositorio)
+
+El proyecto incluye hooks Git para proteger el repositorio y mantener consistencia. Los hooks están en la carpeta `.githooks/` (rastreada por Git) y se ejecutan automáticamente.
+
+### Instalación (requerido en cada PC)
+
+**Después de clonar el repositorio**, ejecutar una sola vez:
+
+```bash
+# Windows
+.\setup-hooks.bat
+
+# Linux / Mac
+chmod +x setup-hooks.sh && ./setup-hooks.sh
+```
+
+O manualmente:
+```bash
+git config core.hooksPath .githooks
+```
+
+### Hooks incluidos
+
+| Hook | Archivo | Propósito |
+|------|---------|-----------|
+| **pre-commit** | `.githooks/pre-commit` | Bloquea commits directos en `main` o `master` |
+| **commit-msg** | `.githooks/commit-msg` | Valida formato Conventional Commits |
+| **pre-push** | `.githooks/pre-push` | Bloquea push a ramas protegidas y archivos sensibles |
+
+### pre-commit — Bloqueo de rama principal
+
+Impide hacer commits directamente en `main` o `master`. Siempre debes crear una rama de desarrollo.
+
+```
+=============================================
+  HOOK PRE-COMMIT BLOQUEADO
+  Archivo: .git/hooks/pre-commit
+=============================================
+
+No se permiten commits directos en 'main'.
+Crea una rama de desarrollo y usa un Pull Request.
+
+  git checkout -b feat/mi-nueva-funcionalidad
+  # realizar cambios, agregar y commitear
+  git push -u origin feat/mi-nueva-funcionalidad
+  gh pr create
+```
+
+### commit-msg — Validación de Conventional Commits
+
+Todos los mensajes de commit deben seguir el formato [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<tipo>(<alcance>): <descripcion>
+```
+
+**Tipos permitidos:**
+
+| Tipo | Uso |
+|------|-----|
+| `feat` | Nueva funcionalidad |
+| `fix` | Corrección de bug |
+| `docs` | Documentación |
+| `style` | Formato (no afecta lógica) |
+| `refactor` | Reestructuración sin cambio de comportamiento |
+| `perf` | Mejora de rendimiento |
+| `test` | Tests |
+| `build` | Sistema de build o dependencias |
+| `ci` | Configuración de CI/CD |
+| `chore` | Tareas de mantenimiento |
+| `revert` | Revertir un commit anterior |
+
+**Ejemplos válidos (todos los tipos):**
+```
+feat(auth): agregar login con GitHub OAuth
+fix(backend): corregir conexion a MongoDB
+docs: actualizar README con guia de hooks
+style(frontend): ajustar espaciado en componentes
+refactor(flow): extraer logica de validacion
+perf(query): optimizar consulta de auditoria
+test(auth): agregar tests para JwtTokenService
+build(backend): actualizar dependencias Gradle
+ci(actions): agregar workflow de build
+chore(scripts): actualizar start-dev.bat
+revert: revertir cambio en FlowService
+```
+
+**Ejemplos inválidos:**
+```
+agregar login          ← falta tipo y parentesis
+feat: algo             ← falta alcance (aceptable si es global)
+FEAT(auth): msg        ← tipo en mayusculas
+```
+
+### pre-push — Protección de ramas y archivos sensibles
+
+Antes de hacer `git push`, este hook:
+
+1. **Bloquea push directo** a `main` o `master`
+2. **Detecta archivos sensibles** en los commits a subir:
+   - `.env`, `.env.local`, `.env.production`
+   - Certificados: `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`
+   - Llaves SSH: `id_rsa*`
+
+Si necesitas push un archivo sensible por alguna razón:
+```bash
+git push --no-verify
+```
+
+### Workflow obligatorio
+
+```
+1. git checkout -b feat/mi-funcionalidad
+2. # desarrollar cambios
+3. git add .
+4. git commit -m "feat(scope): descripcion"   ← commit-msg valida formato
+5. git push -u origin feat/mi-funcionalidad    ← pre-push valida rama
+6. gh pr create
+```
 
 ---
 

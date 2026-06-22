@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Hook commit-msg: valida formato Conventional Commits
+# Archivo: .git/hooks/commit-msg
+#
+# Formato permitido:
+#   <tipo>(<alcance>): <descripcion>
+#
+# Tipos permitidos:
+#   feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+
+commit_msg=$(cat "$1")
+
+pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_/-]+\))?: .+"
+
+if ! echo "$commit_msg" | grep -qE "$pattern"; then
+  echo "============================================="
+  echo "  HOOK COMMIT-MSG: FORMATO INVALIDO"
+  echo "  Archivo: .git/hooks/commit-msg"
+  echo "============================================="
+  echo ""
+  echo "El mensaje del commit no cumple Conventional Commits."
+  echo ""
+  echo "  Formato esperado:"
+  echo "    <tipo>(<alcance>): <descripcion>"
+  echo ""
+  echo "  Tipos permitidos y ejemplos:"
+  echo ""
+  echo "    feat(auth): agregar login con GitHub OAuth"
+  echo "    fix(backend): corregir conexion a MongoDB"
+  echo "    docs: actualizar README con guia de hooks"
+  echo "    style(frontend): ajustar espaciado en componentes"
+  echo "    refactor(flow): extraer logica de validacion"
+  echo "    perf(query): optimizar consulta de auditoria"
+  echo "    test(auth): agregar tests para JwtTokenService"
+  echo "    build(backend): actualizar dependencias Gradle"
+  echo "    ci(actions): agregar workflow de build"
+  echo "    chore(scripts): actualizar start-dev.bat"
+  echo "    revert: revertir cambio en FlowService"
+  echo ""
+  echo "  Tu mensaje:"
+  echo "    $commit_msg"
+  echo ""
+  exit 1
+fi

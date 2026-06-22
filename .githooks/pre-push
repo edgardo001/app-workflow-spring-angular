@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Hook pre-push: bloquea push de archivos sensibles y ramas protegidas
+# Archivo: .git/hooks/pre-push
+
+protected_branches="main master"
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# 1. Bloquear push directo a ramas protegidas
+for branch in $protected_branches; do
+  if [ "$current_branch" = "$branch" ]; then
+    echo "============================================="
+    echo "  HOOK PRE-PUSH: RAMA BLOQUEADA"
+    echo "  Archivo: .git/hooks/pre-push"
+    echo "============================================="
+    echo ""
+    echo "No se permite push directo a '$branch'."
+    echo "Crea una rama de desarrollo y usa un Pull Request."
+    echo ""
+    echo "  git checkout -b feat/mi-nueva-funcionalidad"
+    echo "  git push -u origin feat/mi-nueva-funcionalidad"
+    echo "  gh pr create"
+    echo ""
+    exit 1
+  fi
+done
+
+# 2. Verificar archivos sensibles en los commits a pushear
+sensitive_files=".env .env.local .env.production *.pem *.key *.p12 *.pfx id_rsa* *.jks"
+protected_paths=".env .env.local .env.production"
+
+while read local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  # Obtener archivos changed en el push
+  changed_files=$(git diff --name-only "$remote_sha".."$local_sha" 2>/dev/null)
+
+  for file in $changed_files; do
+    for pattern in $sensitive_files; do
+      if [[ "$file" == $pattern ]]; then
+        echo "============================================="
+        echo "  HOOK PRE-PUSH: ARCHIVO SENSIBLE DETECTADO"
+        echo "  Archivo: .git/hooks/pre-push"
+        echo "============================================="
+        echo ""
+        echo "El archivo '$file' coincide con patron sensible."
+        echo ""
+        echo "Si necesitas push este archivo, usa:"
+        echo "  git push --no-verify"
+        echo ""
+        echo "Archivos bloqueados por defecto:"
+        for p in $sensitive_files; do echo "  - $p"; done
+        echo ""
+        exit 1
+      fi
+    done
+  done
+done
+
+exit 0
