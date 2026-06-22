@@ -1,0 +1,10 @@
+.git
+.gradle
+build
+bin
+**/.idea
+**/*.iml
+**/.vscode
+**/*.swp
+**/.DS_Store
+**/Thumbs.db

@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+**/.angular
+**/.idea
+**/*.iml
+**/.vscode
+**/*.swp
+**/.DS_Store
+**/Thumbs.db

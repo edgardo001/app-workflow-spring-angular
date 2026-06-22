@@ -95,8 +95,8 @@ services:
   # --- Backend (Spring Boot) ---
   backend:
     build:
-      context: ../../
-      dockerfile: src/backend/Dockerfile
+      context: ../../src/backend
+      dockerfile: Dockerfile
     container_name: workflow-backend
     restart: unless-stopped
     depends_on:
@@ -157,8 +157,8 @@ services:
   # --- Frontend (Angular + Nginx) ---
   frontend:
     build:
-      context: ../../
-      dockerfile: src/frontend/Dockerfile
+      context: ../../src/frontend
+      dockerfile: Dockerfile
     container_name: workflow-frontend
     restart: unless-stopped
     depends_on:
