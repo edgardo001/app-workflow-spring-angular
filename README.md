@@ -1163,19 +1163,32 @@ Build & Push Docker Images ✓  (~28s con cache)
 
 ## Despliegue en Producción
 
-El archivo `src/docker/docker-compose.yml` levanta:
-1. **Traefik** — Proxy reverso con TLS automático (Let's Encrypt + Cloudflare)
-2. **MongoDB 8** — Base de datos
-3. **Kafka + Zookeeper** — Mensajería event-driven
-4. **Backend** — Spring Boot API
-5. **Frontend** — Angular SPA (Nginx)
-6. **Prometheus** — Métricas
-7. **Grafana** — Dashboards KPI
+El proyecto tiene **dos archivos Docker Compose** para diferentes escenarios:
 
-### Comandos Principales
+| Archivo | Uso | Backend y Frontend |
+|---------|-----|-------------------|
+| `docker-compose.yml` | **Desarrollo** — compila desde código fuente local | `build:` (construye imagen) |
+| `docker-compose.prod.yml` | **Producción** — descarga imágenes de Docker Hub | `image:` (pull de imagen) |
+
+### ¿Cuándo usar cada uno?
+
+```
+Desarrollo local (tu PC)
+  → docker-compose.yml
+  → Necesitas el código fuente
+  → Compila Backend y Frontend desde el repositorio
+
+Servidor productivo (VPS, cloud)
+  → docker-compose.prod.yml
+  → NO necesitas el código fuente
+  → Solo necesitas: docker-compose.prod.yml + .env
+  → Las imágenes ya están construidas por CI/CD en Docker Hub
+```
+
+### Desarrollo: compilar desde código fuente
 
 ```bash
-# Construir todas las imágenes
+# Construir todas las imágenes desde el código fuente
 docker compose -f src/docker/docker-compose.yml --env-file .env build
 
 # Desplegar la aplicación
@@ -1191,18 +1204,60 @@ docker compose -f src/docker/docker-compose.yml --env-file .env down
 docker compose -f src/docker/docker-compose.yml --env-file .env down --volumes
 ```
 
+### Producción: descargar imágenes de Docker Hub
+
+```bash
+# Solo necesitas estos 2 archivos en el servidor:
+#   - docker-compose.prod.yml
+#   - .env (con tus credenciales)
+
+# Pull de las últimas imágenes desde Docker Hub
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env pull
+
+# Desplegar la aplicación
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env up -d
+
+# Actualizar a la última versión (pull + recrear contenedores)
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env up -d --pull always
+
+# Detener todos los servicios
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env down
+
+# Detener + borrar volúmenes (¡cuidado! borra la BD)
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env down --volumes
+```
+
+### Rollback a versión anterior
+
+Si la última imagen tiene un bug, puedes volver a una versión específica:
+
+```bash
+# 1. Editar docker-compose.prod.yml y cambiar el tag:
+#    image: edgardo001/workflow-net-backend:latest
+#    por:
+#    image: edgardo001/workflow-net-backend:<commit-sha>
+
+# 2. Recrear solo el servicio afectado
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env up -d backend
+
+# 3. O volver a latest después del fix
+docker compose -f src/docker/docker-compose.prod.yml --env-file .env up -d backend
+```
+
 ### Verificar Servicios
 
 ```bash
-# Ver estado de contenedores
-docker compose -f src/docker/docker-compose.yml ps
+# Ver estado de contenedores (funciona con ambos archivos)
+docker compose -f src/docker/docker-compose.yml ps                    # desarrollo
+docker compose -f src/docker/docker-compose.prod.yml ps               # producción
 
 # Ver logs en tiempo real
-docker compose -f src/docker/docker-compose.yml logs -f
+docker compose -f src/docker/docker-compose.yml logs -f               # desarrollo
+docker compose -f src/docker/docker-compose.prod.yml logs -f          # producción
 
 # Ver logs de un servicio específico
-docker compose -f src/docker/docker-compose.yml logs -f backend
-docker compose -f src/docker/docker-compose.yml logs -f traefik
+docker compose -f src/docker/docker-compose.prod.yml logs -f backend
+docker compose -f src/docker/docker-compose.prod.yml logs -f traefik
 ```
 
 ### Servicios desplegados
