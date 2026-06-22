@@ -658,6 +658,71 @@ Una vez revisado y validado el PR, se debe integrar a la rama principal `main`. 
 4. Haz clic en **Confirm merge**.
 5. Presiona **Delete branch** para eliminar la rama de desarrollo ya integrada y mantener el repositorio limpio.
 
+##### ¿Squash o Merge? Cuándo usar cada uno
+
+**`--squash` (Recomendado por defecto)**
+
+Consolida TODOS los commits del PR en un solo commit limpio en `main`:
+
+```
+# Historial en la rama feat/login:
+a1b2c3d feat(auth): agregar login
+d4e5f6g fix(auth): corregir validacion
+h7i8j9k docs(auth): actualizar README
+
+# Despues de squash merge, en main solo queda:
+x1y2z3w feat(auth): agregar login con GitHub OAuth   ← 1 solo commit
+```
+
+**`--merge` (Tradicional)**
+
+Crea un commit de fusion que une ambas ramas, conservando todos los commits originales:
+
+```
+# Historial en la rama feat/login:
+a1b2c3d feat(auth): agregar login
+d4e5f6g fix(auth): corregir validacion
+h7i8j9k docs(auth): actualizar README
+
+# Despues de merge tradicional, en main queda:
+m1n2o3p Merge branch 'feat/login' into main   ← commit de fusion
+  ├─ a1b2c3d feat(auth): agregar login
+  ├─ d4e5f6g fix(auth): corregir validacion
+  └─ h7i8j9k docs(auth): actualizar README
+```
+
+##### Cuándo usar cada opción
+
+| Escenario | Recomendación |
+|-----------|---------------|
+| Feature normal | `--squash` |
+| Hotfix rápido | `--squash` |
+| Release branch | `--merge` |
+| Rama con 1-2 commits significativos | `--merge` |
+| Rama con muchos commits WIP/fix | `--squash` |
+| Auditoría / compliance requerida | `--merge` |
+
+> **Regla simple:** Usa `--squash` por defecto. Usa `--merge` solo cuando necesites preservar el historial completo de cambios.
+
+##### ¿Qué es un WIP?
+
+**WIP = Work In Progress** (Trabajo en Progreso). Son commits temporales que haces mientras desarrollas, como:
+
+```
+wip: intento de login
+fix: arreglar algo
+wip: probando otra cosa
+fix: ahora si funciona
+```
+
+Estos commits **no son útiles en el historial de `main`** porque son ruido. Con `--squash` se consolidan en un solo commit limpio:
+
+```
+feat(auth): implementar login con GitHub OAuth   ← resultado final limpio
+```
+
+**Consejo:** Si haces muchos commits WIP, usa `--squash`. Si cada commit es significativo y limpio, puedes usar `--merge`.
+
 ---
 
 ## Despliegue en Producción
