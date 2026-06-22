@@ -739,6 +739,221 @@ feat(auth): implementar login con GitHub OAuth   ← resultado final limpio
 
 ---
 
+## Referencia de Comandos `gh` (GitHub CLI)
+
+Todos los comandos del flujo de desarrollo y CI/CD se ejecutan desde la terminal usando `gh` (GitHub CLI). Aquí tienes la referencia completa de cada comando, cuándo usarlo y ejemplos reales.
+
+### Diagrama del Flujo Completo
+
+```mermaid
+graph TB
+    subgraph Setup["1. Configuración Inicial"]
+        A1[gh auth login] --> A2[git checkout -b rama/nombre]
+    end
+
+    subgraph Dev["2. Desarrollo"]
+        A2 --> B1[git add .]
+        B1 --> B2["git commit -m 'feat(scope): msg'"]
+        B2 --> B3[git push -u origin rama/nombre]
+    end
+
+    subgraph PR["3. Pull Request"]
+        B3 --> C1["gh pr create --title ... --body ..."]
+        C1 --> C2[gh pr list]
+        C2 --> C3[gh pr status]
+        C3 --> C4["gh pr view <numero>"]
+    end
+
+    subgraph CI["4. CI/CD (Automático)"]
+        C4 --> D1[gh run list]
+        D1 --> D2["gh run watch <id> --exit-status"]
+        D2 --> D3{Tests pass?}
+        D3 -->|No| D4[gh run view <id> --log-failed]
+        D3 -->|Sí| E1
+    end
+
+    subgraph Merge["5. Merge"]
+        E1["gh pr merge <num> --squash --auto --delete-branch"] --> E2[gh pr merge (interactivo)]
+        E2 --> F1[git checkout main]
+        F1 --> F2[git pull]
+    end
+
+    subgraph Auth["6. Mantenimiento Auth"]
+        G1["gh auth refresh -h github.com"] -.->|si expira| D2
+    end
+
+    style Setup fill:#e8f5e9
+    style Dev fill:#e3f2fd
+    style PR fill:#fff3e0
+    style CI fill:#fce4ec
+    style Merge fill:#f3e5f5
+    style Auth fill:#fff9c4
+```
+
+### Comandos por Fase
+
+#### Fase 1 — Configuración
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh auth login` | Iniciar sesión en GitHub CLI | Primera vez en cada PC, o si borras credenciales |
+| `gh auth status` | Verificar si estás autenticado | Antes de cualquier comando `gh` que falle |
+| `gh auth refresh -h github.com` | Renovar token expirado | Cuando `gh` devuelve error de autenticación |
+
+```bash
+# Primera autenticación
+gh auth login
+
+# Verificar estado
+gh auth status
+
+# Renovar si expiró (te pedirá abrir URL en navegador)
+gh auth refresh -h github.com
+```
+
+#### Fase 2 — Desarrollo (git, no gh)
+
+```bash
+# Crear rama (NUNCA trabajar en main)
+git checkout -b fix/mi-correccion
+
+# Agregar y commitear
+git add src/archivo-modificado.java
+git commit -m "fix(backend): descripcion del cambio"
+
+# Subir rama
+git push -u origin fix/mi-correccion
+```
+
+#### Fase 3 — Pull Request
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh pr create` | Crear PR (interactivo) | Después de hacer push de tu rama |
+| `gh pr create --title "..." --body "..."` | Crear PR directo (sin interactivo) | Para PRs rápidos o automatizados |
+| `gh pr list` | Listar PRs abiertos | Ver qué PRs están pendientes de review |
+| `gh pr status` | Ver estado de tus PRs | Ver si tu PR tiene conflictos o está listo para merge |
+| `gh pr view <numero>` | Ver detalles de un PR | Revisar descripción, reviews, checks de un PR específico |
+
+```bash
+# Crear PR con título y descripción
+gh pr create --title "fix: corregir error de autenticacion" --body "## What
+Corrige el manejo de cookies HttpOnly en el filtro JWT.
+
+## Why
+Las cookies no se estaban enviando correctamente en requests cross-origin."
+
+# Listar PRs abiertos
+gh pr list
+
+# Ver tus PRs y su estado
+gh pr status
+
+# Ver un PR específico
+gh pr view 17
+```
+
+#### Fase 4 — Monitoreo de CI/CD
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh run list` | Listar ejecuciones recientes del workflow | Ver el historial de builds y su estado |
+| `gh run watch <id> --exit-status` | Observar una ejecución en tiempo real | Después de push, para ver si el CI pasa |
+| `gh run view <id> --log-failed` | Ver logs de los pasos que fallaron | Cuando un job del CI falla |
+| `gh run view <id>` | Ver resumen de una ejecución | Ver qué jobs pasaron/fallaron sin entrar en logs |
+
+```bash
+# Ver últimas ejecuciones
+gh run list
+
+# Observar la ejecución más reciente (bloquea terminal hasta completar)
+gh run watch --exit-status
+
+# Observar una ejecución específica
+gh run watch 27976213835 --exit-status
+
+# Si falló, ver qué pasos fallaron
+gh run view 27976213835 --log-failed
+
+# Ver resumen rápido
+gh run view 27976213835
+```
+
+#### Fase 5 — Merge
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh pr merge <numero> --squash --auto --delete-branch` | Merge squash + auto-merge + borrar rama | Flujo estándar (recomendado) |
+| `gh pr merge <numero> --merge --delete-branch` | Merge tradicional + borrar rama | Cuando necesitas preservar commits individuales |
+| `gh pr merge` | Merge interactivo | Cuando quieres elegir opciones en runtime |
+
+```bash
+# Merge squash estándar (el que usamos normalmente)
+gh pr merge 17 --squash --auto --delete-branch
+
+# Merge tradicional
+gh pr merge 17 --merge --delete-branch
+
+# Merge interactivo (te pregunta opciones)
+gh pr merge 17
+```
+
+#### Fase 6 — Post-Merge
+
+```bash
+# Volver a main y sincronizar después de merge
+git checkout main
+git pull
+
+# Verificar que estás al día
+git status
+```
+
+### Combinaciones Comunes de Flujo Completo
+
+**Scenario: Crear feature, hacer PR, mergear**
+```bash
+git checkout -b feat/nueva-funcionalidad
+# ... desarrollar ...
+git add .
+git commit -m "feat(scope): nueva funcionalidad"
+git push -u origin feat/nueva-funcionalidad
+gh pr create --title "feat: nueva funcionalidad" --body "descripcion"
+gh run watch --exit-status          # esperar CI
+gh pr merge <num> --squash --auto --delete-branch
+git checkout main && git pull
+```
+
+**Scenario: Hotfix rápido**
+```bash
+git checkout -b fix/hotfix-urgente
+# ... fix ...
+git add .
+git commit -m "fix(scope): hotfix urgente"
+git push -u origin fix/hotfix-urgente
+gh pr create --title "fix: hotfix urgente" --body "descripcion"
+gh run watch --exit-status
+gh pr merge <num> --squash --auto --delete-branch
+git checkout main && git pull
+```
+
+**Scenario: Debuggear CI fallido**
+```bash
+gh run list                              # ver ejecuciones
+gh run view <id> --log-failed            # ver qué falló
+# ... arreglar código ...
+git add . && git commit -m "fix: ..." && git push
+gh run watch --exit-status               # re-ejecutar y verificar
+```
+
+**Scenario: Auth expirada durante CI**
+```bash
+gh auth refresh -h github.com           # renovar token
+gh run watch <id> --exit-status          # reanudar monitoreo
+```
+
+---
+
 ## CI/CD - GitHub Actions
 
 El workflow `.github/workflows/ci-cd.yml` ejecuta automáticamente en cada push a `main` o en cada PR. Usa **Docker Buildx con cache GHA** para reducir tiempos de build entre ejecuciones.
