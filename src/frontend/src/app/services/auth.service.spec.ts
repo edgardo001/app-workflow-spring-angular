@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
+import { vi } from 'vitest';
 import { AuthService } from './auth.service';
 
 const fakeStorage = (() => {
@@ -30,7 +31,7 @@ describe('AuthService', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         AuthService,
-        { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
       ]
     });
     service = TestBed.inject(AuthService);
