@@ -59,7 +59,7 @@ describe('FlowService', () => {
       title: 'New Flow',
       description: 'Desc',
       deadline: '2026-07-01',
-      destinatarios: ['test@test.com'],
+      participantEmails: ['test@test.com'],
       documentIds: ['doc1'],
     };
     const mockFlow = { id: '3', title: 'New Flow' };
