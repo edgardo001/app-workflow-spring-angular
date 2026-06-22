@@ -725,6 +725,53 @@ feat(auth): implementar login con GitHub OAuth   ← resultado final limpio
 
 ---
 
+## CI/CD - GitHub Actions
+
+El workflow `.github/workflows/ci-cd.yml` ejecuta automáticamente:
+
+1. **Test Backend** — Unit tests con Gradle + JDK 17
+2. **Test Frontend** — Unit tests con Vitest + Node.js 22
+3. **Build & Push Docker Images** — Construye y sube imágenes a Docker Hub (solo en `main`)
+
+### Configurar Docker Hub para CI/CD
+
+El paso `Login to Docker Hub` necesita dos **secrets** de GitHub: `DOCKER_HUB_USERNAME` y `DOCKER_HUB_TOKEN`. Sigue estos pasos para configurarlos:
+
+#### 1. Crear Access Token en Docker Hub
+
+1. Ir a [Docker Hub → Account Settings → Security](https://hub.docker.com/settings/security)
+2. Click **"New Access Token"**
+3. Configurar:
+   - **Description:** `github-actions-workflownet` (o similar)
+   - **Access permissions:** **Read & Write** (necesario para push de imágenes)
+4. Click **"Generate Token"**
+5. **Copiar el token inmediatamente** — no se volverá a mostrar
+
+#### 2. Configurar Secrets en GitHub
+
+1. Ir al repositorio en GitHub → **Settings** → **Secrets and variables** → **Actions**
+2. Click **"New repository secret"** para cada uno:
+
+| Secret | Valor |
+|--------|-------|
+| `DOCKER_HUB_USERNAME` | Tu usuario de Docker Hub (ej. `midockeruser`) |
+| `DOCKER_HUB_TOKEN` | El Access Token generado en el paso anterior |
+
+#### 3. Verificar
+
+Después de configurar los secrets, haz push a `main` o crea un PR. El workflow ejecutará automáticamente:
+
+```
+Test Backend ✓
+Test Frontend ✓
+Build & Push Docker Images ✓  →  midockeruser/workflow-net-backend:latest
+                              →  midockeruser/workflow-net-frontend:latest
+```
+
+> **Nota:** Las imágenes se etiquetan con `:latest` y con el SHA del commit (`:<commit-sha>`).
+
+---
+
 ## Despliegue en Producción
 
 El archivo `src/docker/docker-compose.yml` levanta:
