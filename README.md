@@ -739,13 +739,16 @@ El paso `Login to Docker Hub` necesita dos **secrets** de GitHub: `DOCKER_HUB_US
 
 #### 1. Crear Access Token en Docker Hub
 
-1. Ir a [Docker Hub → Account Settings → Security](https://hub.docker.com/settings/security)
-2. Click **"New Access Token"**
-3. Configurar:
+1. Ir a [Docker Home](https://app.docker.com/) e iniciar sesión
+2. Click en tu **avatar** (esquina superior derecha) → **Account settings**
+3. En el menú lateral izquierdo, seleccionar **Personal access tokens**
+4. Click **"Generate new token"**
+5. Configurar:
    - **Description:** `github-actions-workflownet` (o similar)
+   - **Expiration date:** Seleccionar según preferencia (o "None" para sin expiración)
    - **Access permissions:** **Read & Write** (necesario para push de imágenes)
-4. Click **"Generate Token"**
-5. **Copiar el token inmediatamente** — no se volverá a mostrar
+6. Click **"Generate"**
+7. **Copiar el token inmediatamente** — no se volverá a mostrar
 
 #### 2. Configurar Secrets en GitHub
 
