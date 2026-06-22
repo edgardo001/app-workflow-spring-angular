@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Router } from '@angular/router';
 import { AuthService } from './auth.service';
 
 const fakeStorage = (() => {
@@ -20,6 +21,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: fakeStorage, writable
 describe('AuthService', () => {
   let service: AuthService;
   let httpMock: HttpTestingController;
+  let router: Router;
 
   beforeEach(() => {
     localStorage.clear();
@@ -28,10 +30,19 @@ describe('AuthService', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         AuthService,
+        { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
       ]
     });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
+
+    const initReq = httpMock.expectOne('/api/auth/profile');
+    initReq.flush({ id: '0', name: '', email: '', avatar: '', role: 'USER' });
+  });
+
+  afterEach(() => {
+    httpMock.verify();
   });
 
   it('should be created', () => {
@@ -39,7 +50,6 @@ describe('AuthService', () => {
   });
 
   it('should fetch profile', () => {
-    localStorage.setItem('auth_token', 'test-token');
     const mockUser = { id: '1', name: 'Test', email: 'test@test.com', avatar: '', role: 'USER' };
     let result: any;
     service.fetchProfile().subscribe(user => { result = user; });
@@ -49,9 +59,12 @@ describe('AuthService', () => {
     expect(result.name).toBe('Test');
   });
 
-  it('should logout and clear token', () => {
-    localStorage.setItem('auth_token', 'test-token');
+  it('should logout and clear user', () => {
     service.logout();
-    expect(localStorage.getItem('auth_token')).toBeNull();
+    const req = httpMock.expectOne('/api/auth/logout');
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+    expect(service.isAuthenticated).toBe(false);
+    expect(router.navigate).toHaveBeenCalledWith(['/login']);
   });
 });
