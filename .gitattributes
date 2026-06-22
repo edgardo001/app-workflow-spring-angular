@@ -1,0 +1,5 @@
+* text=auto
+
+# Force LF for shell scripts (critical for CI on Linux)
+src/backend/gradlew text eol=lf
+*.sh text eol=lf
