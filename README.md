@@ -760,14 +760,14 @@ graph LR
 
 ### Estadísticas de Rendimiento
 
-| Job | Tiempo | Descripción |
-|-----|--------|-------------|
-| **Test Backend** | ~46s | Unit tests con Gradle, Mockito/MockK (sin MongoDB) |
-| **Test Frontend** | ~24s | Unit tests con Vitest + Angular 22 |
-| **Build & Push Docker Images** | ~1m53s | Multi-stage Docker build + push a Docker Hub |
-| **Total pipeline** | ~2m40s | Jobs paralelos (tests) + secuencial (build) |
+| Job | Tiempo (sin cache) | Tiempo (con cache) | Descripción |
+|-----|-------------------|-------------------|-------------|
+| **Test Backend** | ~46s | ~47s | Unit tests con Gradle, Mockito/MockK (sin MongoDB) |
+| **Test Frontend** | ~24s | ~24s | Unit tests con Vitest + Angular 22 |
+| **Build & Push Docker Images** | ~1m53s | **~28s** | Multi-stage Docker build + push a Docker Hub |
+| **Total pipeline** | ~2m40s | **~1m15s** | Jobs paralelos (tests) + secuencial (build) |
 
-> Los tiempos son en GitHub Actions runners estándar (2 vCPU, 7GB RAM).
+> Los tiempos son en GitHub Actions runners estándar (2 vCPU, 7GB RAM). La columna "con cache" refleja ejecuciones donde las capas Docker ya están cacheadas.
 
 ### Qué se testea
 
@@ -835,9 +835,9 @@ El paso `Login to Docker Hub` necesita dos **secrets** de GitHub: `DOCKER_HUB_US
 Después de configurar los secrets, haz push a `main` o crea un PR. El workflow ejecutará automáticamente:
 
 ```
-Test Backend ✓       (~46s)
+Test Backend ✓       (~47s)
 Test Frontend ✓      (~24s)
-Build & Push Docker Images ✓  (~1m53s)
+Build & Push Docker Images ✓  (~28s con cache)
   →  midockeruser/workflow-net-backend:latest
   →  midockeruser/workflow-net-frontend:latest
 ```
