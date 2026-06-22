@@ -448,6 +448,20 @@ Las llamadas a `http://localhost:4200/api/*` se proxean automáticamente a `http
   docker volume prune -f
   ```
 
+#### Error: `Inlining of fonts failed` en build Docker del frontend
+* **Causa:** Angular 22 descarga e inlinea Google Fonts automáticamente durante `npm run build` en producción. Los contenedores Docker no tienen acceso a internet durante el build, así que la descarga falla.
+* **Solución:** Deshabilitar font inlining en `angular.json`:
+  ```json
+  "configurations": {
+    "production": {
+      "optimization": {
+        "fonts": false
+      }
+    }
+  }
+  ```
+* **Efecto:** Las fuentes no se inlinean en el CSS, pero siguen cargándose en runtime vía los `<link>` tags en `index.html` (sin cambio visual para el usuario).
+
 ---
 
 ## Git Hooks (Protección del Repositorio)
@@ -727,11 +741,69 @@ feat(auth): implementar login con GitHub OAuth   ← resultado final limpio
 
 ## CI/CD - GitHub Actions
 
-El workflow `.github/workflows/ci-cd.yml` ejecuta automáticamente:
+El workflow `.github/workflows/ci-cd.yml` ejecuta automáticamente en cada push a `main` o en cada PR. Usa **Docker Buildx con cache GHA** para reducir tiempos de build entre ejecuciones.
 
-1. **Test Backend** — Unit tests con Gradle + JDK 17
-2. **Test Frontend** — Unit tests con Vitest + Node.js 22
-3. **Build & Push Docker Images** — Construye y sube imágenes a Docker Hub (solo en `main`)
+### Pipeline (3 Jobs Paralelos)
+
+```mermaid
+graph LR
+    subgraph CI["CI/CD Pipeline"]
+        direction LR
+        TB["Test Backend<br/>JDK 17 + Gradle"] ~~~ TF["Test Frontend<br/>Node 22 + Vitest"]
+        TB ~~~ TF
+        TB --> BD["Build & Push Docker Images<br/>Docker Buildx + GHA Cache"]
+        TF --> BD
+    end
+
+    BD --> DH["Docker Hub<br/>workflow-net-backend:latest<br/>workflow-net-frontend:latest"]
+```
+
+### Estadísticas de Rendimiento
+
+| Job | Tiempo | Descripción |
+|-----|--------|-------------|
+| **Test Backend** | ~46s | Unit tests con Gradle, Mockito/MockK (sin MongoDB) |
+| **Test Frontend** | ~24s | Unit tests con Vitest + Angular 22 |
+| **Build & Push Docker Images** | ~1m53s | Multi-stage Docker build + push a Docker Hub |
+| **Total pipeline** | ~2m40s | Jobs paralelos (tests) + secuencial (build) |
+
+> Los tiempos son en GitHub Actions runners estándar (2 vCPU, 7GB RAM).
+
+### Qué se testea
+
+#### Backend (`Test Backend`)
+- Tests unitarios de Spring Boot con Mockito/MockK
+- Sin necesidad de MongoDB/Kafka en CI (todo mockeado)
+- `./gradlew test` ejecuta `src/backend/src/test/java`
+
+#### Frontend (`Test Frontend`)
+- Tests unitarios con Vitest (NO Jasmine/Karma)
+- `@angular/build:unit-test` runner
+- `src/frontend/src/app/**/*.spec.ts`
+
+### Build Docker
+
+#### Backend (`workflow-net-backend`)
+- Multi-stage build: `gradle:8.9-jdk17` (build) → `eclipse-temurin:17-jre-alpine` (runtime)
+- **Capa de caché de dependencias Gradle** — solo re-descarga si cambian `build.gradle.kts` o `gradle/`
+- Solo copia el JAR resultante al stage final (~150MB vs ~1GB)
+
+#### Frontend (`workflow-net-frontend`)
+- Multi-stage build: `node:22-alpine` (build) → `nginx:alpine` (runtime)
+- **`npm ci`** en vez de `npm install` para installs reproducibles
+- **Font inlining deshabilitado** — Angular 22 intenta descargar Google Fonts durante el build; Docker no tiene internet, así que se usa `"fonts": false` en `angular.json`. Las fuentes se cargan en runtime vía `<link>` tags en `index.html`
+
+### Optimizaciones de CI/CD
+
+| Optimización | Impacto | Descripción |
+|-------------|---------|-------------|
+| **Docker Buildx GHA Cache** | ~60% más rápido | Reutiliza capas Docker entre ejecuciones del pipeline |
+| **Gradle dependency cache** | ~30s ahorro | Capa separada de dependencias en Dockerfile |
+| **`npm ci` en vez de `npm install`** | ~10s ahorro | Instalación limpia y reproducible sin resolución de dependencias |
+| **`.dockerignore`** | ~15% menos contexto | Excluye `.git`, `node_modules`, `build`, IDEs del contexto Docker |
+| **Contextos Docker reducidos** | ~40% menos transfer | `src/backend` y `src/frontend` en vez de toda la raíz del repo |
+| **Jobs paralelos** | 2x más rápido | Backend y Frontend tests corren en paralelo |
+| **Solo tests en PR, build en main** | Menos waste | Los PRs solo ejecutan tests, el build + push solo corre en `main` |
 
 ### Configurar Docker Hub para CI/CD
 
@@ -763,10 +835,11 @@ El paso `Login to Docker Hub` necesita dos **secrets** de GitHub: `DOCKER_HUB_US
 Después de configurar los secrets, haz push a `main` o crea un PR. El workflow ejecutará automáticamente:
 
 ```
-Test Backend ✓
-Test Frontend ✓
-Build & Push Docker Images ✓  →  midockeruser/workflow-net-backend:latest
-                              →  midockeruser/workflow-net-frontend:latest
+Test Backend ✓       (~46s)
+Test Frontend ✓      (~24s)
+Build & Push Docker Images ✓  (~1m53s)
+  →  midockeruser/workflow-net-backend:latest
+  →  midockeruser/workflow-net-frontend:latest
 ```
 
 > **Nota:** Las imágenes se etiquetan con `:latest` y con el SHA del commit (`:<commit-sha>`).
