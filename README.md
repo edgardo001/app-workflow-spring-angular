@@ -739,9 +739,224 @@ feat(auth): implementar login con GitHub OAuth   ← resultado final limpio
 
 ---
 
+## Referencia de Comandos `gh` (GitHub CLI)
+
+Todos los comandos del flujo de desarrollo y CI/CD se ejecutan desde la terminal usando `gh` (GitHub CLI). Aquí tienes la referencia completa de cada comando, cuándo usarlo y ejemplos reales.
+
+### Diagrama del Flujo Completo
+
+```mermaid
+graph TB
+    subgraph Setup["1. Configuración Inicial"]
+        A1[gh auth login] --> A2[git checkout -b rama/nombre]
+    end
+
+    subgraph Dev["2. Desarrollo"]
+        A2 --> B1[git add .]
+        B1 --> B2["git commit -m 'feat(scope): msg'"]
+        B2 --> B3[git push -u origin rama/nombre]
+    end
+
+    subgraph PR["3. Pull Request"]
+        B3 --> C1["gh pr create --title ... --body ..."]
+        C1 --> C2[gh pr list]
+        C2 --> C3[gh pr status]
+        C3 --> C4["gh pr view <numero>"]
+    end
+
+    subgraph CI["4. CI/CD (Automático)"]
+        C4 --> D1[gh run list]
+        D1 --> D2["gh run watch <id> --exit-status"]
+        D2 --> D3{Tests pass?}
+        D3 -->|No| D4[gh run view <id> --log-failed]
+        D3 -->|Sí| E1
+    end
+
+    subgraph Merge["5. Merge"]
+        E1["gh pr merge <num> --squash --auto --delete-branch"] --> E2[gh pr merge (interactivo)]
+        E2 --> F1[git checkout main]
+        F1 --> F2[git pull]
+    end
+
+    subgraph Auth["6. Mantenimiento Auth"]
+        G1["gh auth refresh -h github.com"] -.->|si expira| D2
+    end
+
+    style Setup fill:#e8f5e9
+    style Dev fill:#e3f2fd
+    style PR fill:#fff3e0
+    style CI fill:#fce4ec
+    style Merge fill:#f3e5f5
+    style Auth fill:#fff9c4
+```
+
+### Comandos por Fase
+
+#### Fase 1 — Configuración
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh auth login` | Iniciar sesión en GitHub CLI | Primera vez en cada PC, o si borras credenciales |
+| `gh auth status` | Verificar si estás autenticado | Antes de cualquier comando `gh` que falle |
+| `gh auth refresh -h github.com` | Renovar token expirado | Cuando `gh` devuelve error de autenticación |
+
+```bash
+# Primera autenticación
+gh auth login
+
+# Verificar estado
+gh auth status
+
+# Renovar si expiró (te pedirá abrir URL en navegador)
+gh auth refresh -h github.com
+```
+
+#### Fase 2 — Desarrollo (git, no gh)
+
+```bash
+# Crear rama (NUNCA trabajar en main)
+git checkout -b fix/mi-correccion
+
+# Agregar y commitear
+git add src/archivo-modificado.java
+git commit -m "fix(backend): descripcion del cambio"
+
+# Subir rama
+git push -u origin fix/mi-correccion
+```
+
+#### Fase 3 — Pull Request
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh pr create` | Crear PR (interactivo) | Después de hacer push de tu rama |
+| `gh pr create --title "..." --body "..."` | Crear PR directo (sin interactivo) | Para PRs rápidos o automatizados |
+| `gh pr list` | Listar PRs abiertos | Ver qué PRs están pendientes de review |
+| `gh pr status` | Ver estado de tus PRs | Ver si tu PR tiene conflictos o está listo para merge |
+| `gh pr view <numero>` | Ver detalles de un PR | Revisar descripción, reviews, checks de un PR específico |
+
+```bash
+# Crear PR con título y descripción
+gh pr create --title "fix: corregir error de autenticacion" --body "## What
+Corrige el manejo de cookies HttpOnly en el filtro JWT.
+
+## Why
+Las cookies no se estaban enviando correctamente en requests cross-origin."
+
+# Listar PRs abiertos
+gh pr list
+
+# Ver tus PRs y su estado
+gh pr status
+
+# Ver un PR específico
+gh pr view 17
+```
+
+#### Fase 4 — Monitoreo de CI/CD
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh run list` | Listar ejecuciones recientes del workflow | Ver el historial de builds y su estado |
+| `gh run watch <id> --exit-status` | Observar una ejecución en tiempo real | Después de push, para ver si el CI pasa |
+| `gh run view <id> --log-failed` | Ver logs de los pasos que fallaron | Cuando un job del CI falla |
+| `gh run view <id>` | Ver resumen de una ejecución | Ver qué jobs pasaron/fallaron sin entrar en logs |
+
+```bash
+# Ver últimas ejecuciones
+gh run list
+
+# Observar la ejecución más reciente (bloquea terminal hasta completar)
+gh run watch --exit-status
+
+# Observar una ejecución específica
+gh run watch 27976213835 --exit-status
+
+# Si falló, ver qué pasos fallaron
+gh run view 27976213835 --log-failed
+
+# Ver resumen rápido
+gh run view 27976213835
+```
+
+#### Fase 5 — Merge
+
+| Comando | Descripción | Cuándo usarlo |
+|---------|-------------|---------------|
+| `gh pr merge <numero> --squash --auto --delete-branch` | Merge squash + auto-merge + borrar rama | Flujo estándar (recomendado) |
+| `gh pr merge <numero> --merge --delete-branch` | Merge tradicional + borrar rama | Cuando necesitas preservar commits individuales |
+| `gh pr merge` | Merge interactivo | Cuando quieres elegir opciones en runtime |
+
+```bash
+# Merge squash estándar (el que usamos normalmente)
+gh pr merge 17 --squash --auto --delete-branch
+
+# Merge tradicional
+gh pr merge 17 --merge --delete-branch
+
+# Merge interactivo (te pregunta opciones)
+gh pr merge 17
+```
+
+#### Fase 6 — Post-Merge
+
+```bash
+# Volver a main y sincronizar después de merge
+git checkout main
+git pull
+
+# Verificar que estás al día
+git status
+```
+
+### Combinaciones Comunes de Flujo Completo
+
+**Scenario: Crear feature, hacer PR, mergear**
+```bash
+git checkout -b feat/nueva-funcionalidad
+# ... desarrollar ...
+git add .
+git commit -m "feat(scope): nueva funcionalidad"
+git push -u origin feat/nueva-funcionalidad
+gh pr create --title "feat: nueva funcionalidad" --body "descripcion"
+gh run watch --exit-status          # esperar CI
+gh pr merge <num> --squash --auto --delete-branch
+git checkout main && git pull
+```
+
+**Scenario: Hotfix rápido**
+```bash
+git checkout -b fix/hotfix-urgente
+# ... fix ...
+git add .
+git commit -m "fix(scope): hotfix urgente"
+git push -u origin fix/hotfix-urgente
+gh pr create --title "fix: hotfix urgente" --body "descripcion"
+gh run watch --exit-status
+gh pr merge <num> --squash --auto --delete-branch
+git checkout main && git pull
+```
+
+**Scenario: Debuggear CI fallido**
+```bash
+gh run list                              # ver ejecuciones
+gh run view <id> --log-failed            # ver qué falló
+# ... arreglar código ...
+git add . && git commit -m "fix: ..." && git push
+gh run watch --exit-status               # re-ejecutar y verificar
+```
+
+**Scenario: Auth expirada durante CI**
+```bash
+gh auth refresh -h github.com           # renovar token
+gh run watch <id> --exit-status          # reanudar monitoreo
+```
+
+---
+
 ## CI/CD - GitHub Actions
 
-El workflow `.github/workflows/ci-cd.yml` ejecuta automáticamente en cada push a `main` o en cada PR. Usa **Docker Buildx con cache GHA** para reducir tiempos de build entre ejecuciones.
+El workflow `.github/workflows/ci-cd.yml` ejecuta automáticamente en cada push a `main` o en cada PR.
 
 ### Pipeline (3 Jobs Paralelos)
 
@@ -760,14 +975,114 @@ graph LR
 
 ### Estadísticas de Rendimiento
 
-| Job | Tiempo (sin cache) | Tiempo (con cache) | Descripción |
-|-----|-------------------|-------------------|-------------|
+| Job | Sin cache | Con cache | Descripción |
+|-----|-----------|-----------|-------------|
 | **Test Backend** | ~46s | ~47s | Unit tests con Gradle, Mockito/MockK (sin MongoDB) |
 | **Test Frontend** | ~24s | ~24s | Unit tests con Vitest + Angular 22 |
-| **Build & Push Docker Images** | ~1m53s | **~28s** | Multi-stage Docker build + push a Docker Hub |
+| **Build & Push Docker** | ~1m53s | **~28s** | Multi-stage Docker build + push a Docker Hub |
 | **Total pipeline** | ~2m40s | **~1m15s** | Jobs paralelos (tests) + secuencial (build) |
 
-> Los tiempos son en GitHub Actions runners estándar (2 vCPU, 7GB RAM). La columna "con cache" refleja ejecuciones donde las capas Docker ya están cacheadas.
+> Los tiempos son en GitHub Actions runners estándar (2 vCPU, 7GB RAM).
+
+### Cómo funciona el cache de Docker (y por qué reduce de 2min a 28s)
+
+Docker construye imágenes por **capas** (layers). Cada instrucción en el `Dockerfile` es una capa:
+
+```dockerfile
+# Dockerfile del backend (simplificado)
+FROM gradle:8.9-jdk17 AS build          # Capa 1: imagen base
+COPY build.gradle.kts .                 # Capa 2: archivo de dependencias
+COPY gradle/ gradle/                    # Capa 3: wrapper de Gradle
+RUN gradle dependencies                 # Capa 4: ⏱ descarga ~500MB de dependencias
+COPY src/ src/                          # Capa 5: código fuente
+RUN gradle bootJar                      # Capa 6: compila el JAR
+
+FROM eclipse-temurin:17-jre-alpine      # Capa 7: imagen base ligera
+COPY --from=build /app/build/libs/*.jar # Capa 8: solo el JAR (~150MB)
+```
+
+#### Sin cache (primera ejecución o sin Buildx)
+
+```
+Tiempo total: ~1m53s
+
+Capa 1: pull imagen base          → 5s
+Capa 2: copiar build.gradle.kts   → instantáneo
+Capa 3: copiar gradle/            → instantáneo
+Capa 4: descargar dependencias    → ⏱ ~60s  ← el cuello de botella
+Capa 5: copiar src/               → 2s
+Capa 6: compilar JAR              → ~25s
+Capa 7: pull imagen base ligera   → 3s
+Capa 8: copiar JAR                → instantáneo
+```
+
+#### Con Docker Buildx + cache GHA (segunda ejecución en adelante)
+
+GitHub Actions almacena las capas Docker en su cache. En la siguiente ejecución, Docker **reutiliza las capas que no cambiaron**:
+
+```
+Tiempo total: ~28s
+
+Capa 1: pull imagen base          → 5s  (cacheada, rápida)
+Capa 2: copiar build.gradle.kts   → 0s  (misma→reutilizada)
+Capa 3: copiar gradle/            → 0s  (misma→reutilizada)
+Capa 4: descargar dependencias    → 0s  (cacheada→no descarga nada)
+Capa 5: copiar src/               → 2s  (cambió→se reconstruye)
+Capa 6: compilar JAR              → ~20s (depende de capa 5)
+Capa 7: pull imagen base ligera   → 0s  (cacheada)
+Capa 8: copilar JAR               → 0s  (cacheado)
+```
+
+**El ahorro viene de la capa 4 (dependencias).** Descargar ~500MB de dependencias de Maven/Gradle toma ~60 segundos. Con cache, esa capa se reutiliza y el tiempo baja a 0.
+
+#### Diagrama visual del cache
+
+```mermaid
+graph TB
+    subgraph Ejecucion1["Primera ejecución (sin cache)"]
+        E1C1[Capa 1: base] --> E1C2[Capa 2: build.gradle.kts]
+        E1C2 --> E1C3[Capa 3: gradle/]
+        E1C3 --> E1C4["Capa 4: ⏱ dependencias (~60s)"]
+        E1C4 --> E1C5[Capa 5: src/]
+        E1C5 --> E1C6[Capa 6: compilar]
+        E1C6 --> E1C7[Capa 7: base ligera]
+        E1C7 --> E1C8[Capa 8: JAR]
+    end
+
+    subgraph Cache["Almacenado en GitHub Actions Cache"]
+        E1C2 -.->|guardar| CACHE2[build.gradle.kts]
+        E1C3 -.->|guardar| CACHE3[gradle/]
+        E1C4 -.->|guardar| CACHE4["~500MB deps"]
+        E1C7 -.->|guardar| CACHE7[base ligera]
+    end
+
+    subgraph Ejecucion2["Segunda ejecución (con cache)"]
+        E2C1[Capa 1: base] --> E2C2["Capa 2: ✅ reutilizada"]
+        E2C2 --> E2C3["Capa 3: ✅ reutilizada"]
+        E2C3 --> E2C4["Capa 4: ✅ sin descargar"]
+        E2C4 --> E2C5[Capa 5: src/ modificado]
+        E2C5 --> E2C6[Capa 6: recompilar]
+        E2C6 --> E2C7["Capa 7: ✅ reutilizada"]
+        E2C7 --> E2C8["Capa 8: ✅ reutilizada"]
+    end
+
+    CACHE4 -.->|usar| E2C4
+
+    style Ejecucion1 fill:#ffebee
+    style Cache fill:#e3f2fd
+    style Ejecucion2 fill:#e8f5e9
+```
+
+#### Regla simple
+
+| Qué cambió entre ejecuciones | Qué se reconstruye | Tiempo estimado |
+|------------------------------|-------------------|-----------------|
+| Solo código fuente (`src/`) | Capas 5-6 | ~25s |
+| `build.gradle.kts` o `gradle/` | Capas 2-6 (dependencias) | ~85s |
+| `Dockerfile` | Todo desde ese punto | Variable |
+| Nada | Todo cacheado | ~10s |
+
+> **En resumen:** Docker Buildx GHA Cache guarda las capas de la imagen Docker en el cache de GitHub Actions. Cuando solo cambia el código fuente, las capas pesadas (dependencias, imagen base) se reutilizan sin volver a descargarlas. Por eso baja de ~2min a ~28s.
 
 ### Qué se testea
 
@@ -795,15 +1110,15 @@ graph LR
 
 ### Optimizaciones de CI/CD
 
-| Optimización | Impacto | Descripción |
-|-------------|---------|-------------|
-| **Docker Buildx GHA Cache** | ~60% más rápido | Reutiliza capas Docker entre ejecuciones del pipeline |
-| **Gradle dependency cache** | ~30s ahorro | Capa separada de dependencias en Dockerfile |
-| **`npm ci` en vez de `npm install`** | ~10s ahorro | Instalación limpia y reproducible sin resolución de dependencias |
-| **`.dockerignore`** | ~15% menos contexto | Excluye `.git`, `node_modules`, `build`, IDEs del contexto Docker |
-| **Contextos Docker reducidos** | ~40% menos transfer | `src/backend` y `src/frontend` en vez de toda la raíz del repo |
-| **Jobs paralelos** | 2x más rápido | Backend y Frontend tests corren en paralelo |
-| **Solo tests en PR, build en main** | Menos waste | Los PRs solo ejecutan tests, el build + push solo corre en `main` |
+| Optimización | Qué hace | Ahorro |
+|-------------|----------|--------|
+| **Docker Buildx GHA Cache** | Guarda capas Docker en cache de GitHub Actions. En la segunda ejecución, reutiliza las capas que no cambiaron (dependencias, imagen base). | **~90s** (de ~113s a ~28s) |
+| **Gradle dependency cache** | Capa separada en Dockerfile: copia `build.gradle.kts` ANTES del código fuente. Si solo cambia `src/`, las dependencias no se re-descargan. | ~60s |
+| **`npm ci` en vez de `npm install`** | `npm ci` borra `node_modules` y reinstala limpio. Más rápido y reproducible que `npm install`. | ~10s |
+| **`.dockerignore`** | Excluye `.git`, `node_modules`, `build`, IDEs del contexto Docker. Menos datos a transferir al daemon Docker. | ~15% menos tiempo |
+| **Contextos Docker reducidos** | Build contexts apuntan a `src/backend` y `src/frontend` en vez de toda la raíz. Docker solo transfiere lo necesario. | ~40% menos transfer |
+| **Jobs paralelos** | Backend y Frontend tests corren al mismo tiempo. Solo si ambos pasan, se ejecuta el build Docker. | 2x más rápido |
+| **Solo tests en PR, build en main** | Los PRs solo ejecutan tests (~70s). El build + push a Docker Hub solo corre al hacer merge a `main`. | Menos consumo de minutos |
 
 ### Configurar Docker Hub para CI/CD
 
