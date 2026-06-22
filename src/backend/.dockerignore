@@ -1,10 +1,32 @@
+# =============================================================================
+# Backend .dockerignore
+# =============================================================================
+# Excluye archivos/directorios que NO deben enviarse al daemon Docker.
+# Esto reduce el "build context" (datos transferidos al daemon) y evita
+# que archivos innecesarios contaminen la imagen.
+#
+# Ejemplo: sin .dockerignore, el directorio .git (~500MB) se enviaría
+# al daemon Docker en cada build, aunque el Dockerfile no lo use.
+# =============================================================================
+
+# Git: historial de commits, hooks, etc. (~500MB). Nunca se necesita en el build.
 .git
+
+# Gradle: cache local de dependencias descargadas (~200MB).
+# En Docker se descargan limpias via `./gradlew dependencies`.
 .gradle
+
+# Build output: JARs compilados, reportes de test, etc.
+# El Dockerfile genera sus propios artifacts limpios.
 build
+
+# Eclipse/IDE: archivos de configuración de IDEs.
 bin
 **/.idea
 **/*.iml
 **/.vscode
+
+# OS: archivos temporales del sistema operativo.
 **/*.swp
 **/.DS_Store
 **/Thumbs.db
