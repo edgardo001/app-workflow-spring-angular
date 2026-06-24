@@ -339,7 +339,7 @@ services:
       # Configuración: define qué endpoints scrapear y cada cuánto.
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       # Datos históricos: persisten entre reinicios.
-      prometheus-data:/prometheus
+      - prometheus-data:/prometheus
     deploy:
       resources:
         limits:
