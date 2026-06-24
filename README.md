@@ -1,4 +1,4 @@
-# WorkflowNet
+# WorkflowSpringAngular
 
 Sistema de aprobación secuencial de documentos con **Arquitectura Orientada a Eventos** y **SAGA Orquestado**.
 
